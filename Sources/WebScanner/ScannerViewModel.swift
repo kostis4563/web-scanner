@@ -21,12 +21,39 @@ final class ScannerViewModel: ObservableObject {
     @Published var deepSecretScan: Bool = true
     @Published var revealSecrets: Bool = true
     @Published var intensity: ScanIntensity = .deep
+    @Published var mode: ScanMode = .siteScan
+
+    // Content-discovery options (port of scaner.py flags)
+    @Published var wordlistText: String = ""       // words pasted directly
+    @Published var wordlistSource: String = ""     // file path(s)/URL(s), comma-separated (-d)
+    @Published var extensionsText: String = ""     // e.g. "php,bak,old" (-X)
+    @Published var scanDirectories: Bool = true    // discover directories (-s)
+    @Published var recursive: Bool = false         // recurse into found dirs (-r)
+    @Published var maxRequests: Int = 3000         // safety cap on total requests
+
+    // URL-mask options (port of scanurls.py)
+    @Published var maskMaxLength: Int = 44         // max URL length for * growth (-l)
+    @Published var maskLimit: Int = 2000           // cap on generated URLs
+
+    // Request options applied to every request, all modes
+    @Published var customHeaders: String = ""      // "Key: Value" lines (-H)
+    @Published var cookie: String = ""             // cookie string (-c)
+    @Published var basicAuth: String = ""          // user:password (-u)
+    @Published var userAgentOverride: String = ""  // custom UA (-a)
+    @Published var requestDelayMs: Int = 0         // delay between requests (-z)
+
+    // Response filters (content discovery / URL mask)
+    @Published var excludeCodesText: String = "404"  // ignore these codes (-N)
+    @Published var onlyCodesText: String = ""        // only these codes (-S)
+    @Published var notInTitle: String = ""           // skip if in title (--not)
+
+    @Published private(set) var findings: [Finding] = []
+    @Published private(set) var discovered: [DiscoveredURL] = []
 
     @Published var isScanning: Bool = false
     @Published var progress: Double = 0
     @Published var statusText: String = "Idle"
     @Published var logLines: [String] = []
-    @Published private(set) var findings: [Finding] = []
 
     @Published var scannedURL: URL?
     @Published var startedAt: Date?
@@ -34,6 +61,7 @@ final class ScannerViewModel: ObservableObject {
 
     private let http = HTTPClient()
     private var findingKeys = Set<String>()
+    private var discoveredKeys = Set<String>()
     private var seenJWTs = Set<String>()
 
     var sortedFindings: [Finding] {
@@ -66,21 +94,182 @@ final class ScannerViewModel: ObservableObject {
             log("⚠️ Confirm you are authorized to test this target before scanning.")
             return
         }
-        guard let base = normalizeTarget(target) else {
-            log("❌ Enter a valid domain, e.g. example.com")
-            return
+
+        // Per-mode validation.
+        var base: URL?
+        if mode == .siteScan || mode == .contentDiscovery {
+            guard let b = normalizeTarget(target) else {
+                log("❌ Enter a valid domain, e.g. example.com")
+                return
+            }
+            base = b
+        } else {
+            guard !target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                log("❌ Enter a URL template, e.g. https://[a-z]{1,3}.example.com")
+                return
+            }
         }
+
+        http.options = buildRequestOptions()
         SecretScanner.revealSecrets = revealSecrets
-        findings = []
-        findingKeys = []
-        seenJWTs = []
-        logLines = []
-        progress = 0
+        resetState()
         isScanning = true
         startedAt = Date()
         finishedAt = nil
-        scannedURL = base
-        Task { await runScan(base) }
+
+        switch mode {
+        case .siteScan:
+            scannedURL = base
+            Task { await runScan(base!) }
+        case .contentDiscovery:
+            scannedURL = base
+            Task { await runContentDiscoveryScan(base!) }
+        case .urlMask:
+            Task { await runURLMask(target.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        }
+    }
+
+    private func resetState() {
+        findings = []
+        findingKeys = []
+        discovered = []
+        discoveredKeys = []
+        seenJWTs = []
+        logLines = []
+        progress = 0
+    }
+
+    private func buildRequestOptions() -> RequestOptions {
+        var o = RequestOptions()
+        o.extraHeaders = RequestOptions.parseHeaderBlock(customHeaders)
+        o.cookie = cookie.isEmpty ? nil : cookie
+        o.basicAuth = basicAuth.isEmpty ? nil : basicAuth
+        o.userAgent = userAgentOverride.isEmpty ? nil : userAgentOverride
+        o.delayMs = max(0, requestDelayMs)
+        return o
+    }
+
+    private func buildFilters() -> DiscoveryFilters {
+        var f = DiscoveryFilters()
+        f.excludeCodes = DiscoveryFilters.parseCodes(excludeCodesText)
+        f.onlyCodes = DiscoveryFilters.parseCodes(onlyCodesText)
+        f.notInTitle = notInTitle.isEmpty ? nil : notInTitle
+        return f
+    }
+
+    /// Assemble the effective word list from pasted text and/or file/URL sources,
+    /// falling back to the built-in default list.
+    private func loadWords() async -> [String] {
+        var seen = Set<String>()
+        var words: [String] = []
+        func add(_ list: [String]) { for w in list where seen.insert(w).inserted { words.append(w) } }
+
+        if !wordlistText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            add(Wordlist.parse(wordlistText))
+        }
+        let src = wordlistSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !src.isEmpty {
+            add(await Wordlist.load(spec: src, http: http))
+        }
+        if words.isEmpty { add(Wordlist.defaultPaths) }
+        return words
+    }
+
+    // MARK: - Content discovery (scaner.py)
+
+    private func runContentDiscoveryScan(_ base: URL) async {
+        let host0 = base.host ?? base.absoluteString
+        log("▶︎ Content discovery on \(host0)")
+        setStatus("Connecting...")
+        guard let home = await http.fetch(base) else {
+            log("❌ Could not reach \(host0). Scan aborted.")
+            finishScan()
+            return
+        }
+        scannedURL = home.finalURL
+        let origin = originString(of: home.finalURL)
+        let host = home.finalURL.host ?? host0
+        log("✓ Connected - HTTP \(home.status) at \(home.finalURL.absoluteString)")
+        progress = 0.04
+
+        setStatus("Calibrating soft-404 baseline...")
+        let soft = await computeSoft404(origin: origin)
+
+        setStatus("Loading wordlist...")
+        let words = await loadWords()
+        log("• Wordlist: \(words.count) entries" + (extensionsText.isEmpty ? "" : ", extensions: \(extensionsText)"))
+
+        var cfg = DirBruteForcer.Config(origin: origin, host: host)
+        cfg.extensions = Wordlist.parseExtensions(extensionsText)
+        cfg.scanDirectories = scanDirectories
+        cfg.recursive = recursive
+        cfg.runSecretScan = deepSecretScan
+        cfg.maxRequests = max(50, maxRequests)
+        cfg.filters = buildFilters()
+
+        let forcer = DirBruteForcer(http: http, config: cfg, reporter: self)
+        await forcer.run(words: words, soft: soft)
+
+        progress = 1.0
+        finishScan()
+    }
+
+    // MARK: - URL mask (scanurls.py)
+
+    private func runURLMask(_ template: String) async {
+        log("▶︎ URL mask: \(template)")
+        setStatus("Expanding template...")
+
+        let dict = template.contains("$") ? await loadWords() : []
+        let urls = URLTemplate.expand(template, dictionary: dict,
+                                      maxLength: maskMaxLength, limit: max(1, maskLimit))
+        guard !urls.isEmpty else {
+            log("❌ Template produced no URLs.")
+            finishScan()
+            return
+        }
+        log("• Generated \(urls.count) candidate URL(s)")
+
+        let filters = buildFilters()
+        let candidates = urls.compactMap { URL(string: $0) }
+        let client = http
+        let total = max(candidates.count, 1)
+        var done = 0
+        for batch in candidates.chunked(into: 12) {
+            await withTaskGroup(of: (URL, HTTPResponse?).self) { group in
+                for u in batch { group.addTask { (u, await client.fetch(u)) } }
+                for await (u, resp) in group {
+                    done += 1
+                    guard let resp, resp.status != 404,
+                          filters.passesCode(resp.status) else { continue }
+                    let title = HTMLHelpers.title(from: resp.text)
+                    guard filters.passesTitle(title) else { continue }
+                    recordMaskHit(url: u, resp: resp, title: title)
+                }
+            }
+            progress = min(0.99, Double(min(done, total)) / Double(total))
+            setStatus("Probing URLs... \(min(done, total))/\(total) — \(discovered.count) live")
+        }
+        progress = 1.0
+        finishScan()
+    }
+
+    private func recordMaskHit(url: URL, resp: HTTPResponse, title: String?) {
+        let ct = MimeTypes.baseType(of: resp.contentType)
+        let isHTML = ct.contains("html") || HTMLHelpers.looksLikeHTML(resp.text)
+        var notable = false
+        var kind: DiscoveredURL.Kind = isHTML ? .page : .file
+        if HTMLHelpers.isOpenDirectory(resp.text) { kind = .openDirectory; notable = true }
+
+        if deepSecretScan, !isHTML, resp.status == 200, resp.body.count > 0 {
+            let hits = SecretScanner.scan(resp.text, source: resp.finalURL.absoluteString)
+            if !hits.isEmpty { notable = true; addFindings(hits) }
+        }
+        let d = DiscoveredURL(url: resp.finalURL.absoluteString, status: resp.status,
+                              length: resp.body.count, contentType: ct, title: title,
+                              kind: kind, notable: notable)
+        discoveryURL(d)
+        log("\(notable ? "‼︎" : "+") [\(resp.status)] \(resp.finalURL.absoluteString)\(title.map { " — \($0)" } ?? "")")
     }
 
     private func runScan(_ base: URL) async {
@@ -1199,8 +1388,38 @@ final class ScannerViewModel: ObservableObject {
     private func finishScan() {
         finishedAt = Date()
         isScanning = false
-        statusText = "Done - \(findings.count) findings"
+        let disc = discovered.isEmpty ? "" : " · \(discovered.count) URLs"
+        statusText = "Done - \(findings.count) findings\(disc)"
         let c = counts
-        log("■ Scan complete: \(c[.critical] ?? 0) critical, \(c[.high] ?? 0) high, \(c[.medium] ?? 0) medium, \(c[.low] ?? 0) low, \(c[.info] ?? 0) info.")
+        log("■ Scan complete: \(c[.critical] ?? 0) critical, \(c[.high] ?? 0) high, \(c[.medium] ?? 0) medium, \(c[.low] ?? 0) low, \(c[.info] ?? 0) info."
+            + (discovered.isEmpty ? "" : " Discovered \(discovered.count) reachable URL(s)."))
     }
+
+    /// Plain-text export of the discovered-URL hit list.
+    var discoveredText: String {
+        var out = "# Discovered URLs (\(discovered.count))\n"
+        out += "# code\tbytes\tkind\turl\ttitle\n"
+        for d in discovered.sorted(by: { $0.url < $1.url }) {
+            out += "\(d.status)\t\(d.length)\t\(d.kind.label)\t\(d.url)\t\(d.title ?? "")\n"
+        }
+        return out
+    }
+}
+
+// MARK: - DiscoveryReporter
+
+extension ScannerViewModel: DiscoveryReporter {
+    func discoveryFinding(_ f: Finding) { addFinding(f) }
+
+    func discoveryURL(_ d: DiscoveredURL) {
+        guard discoveredKeys.insert(d.url).inserted else { return }
+        discovered.append(d)
+    }
+
+    func discoveryProgress(done: Int, total: Int, status: String) {
+        if total > 0 { progress = min(0.99, 0.05 + 0.94 * Double(done) / Double(total)) }
+        statusText = status
+    }
+
+    func discoveryLog(_ s: String) { log(s) }
 }

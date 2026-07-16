@@ -2,8 +2,8 @@
 
 # 🛡️ Web Scanner
 
-**A native macOS app that scans a website for common security weaknesses —**
-**and tells you what each finding means, how it could be exploited, and how to fix it.**
+**A native macOS app that scans a website for security weaknesses, exposed secrets,**
+**and hidden content — and explains what each finding means, how it could be exploited, and how to fix it.**
 
 ![Platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
@@ -27,14 +27,21 @@
   Slack, OpenAI, and many more), found across HTML, JS, CSS, config, and source maps.
 - 📂 **Exposed-file hunt** — `.env`, `.git/config`, backups, SQL dumps, and blocked
   `.env` files recovered through side-doors the deny rule usually misses.
+- 🗂️ **Content discovery** — wordlist-driven directory & file brute-forcing with
+  directory discovery, recursion, extension fuzzing, open-directory + default-file
+  detection, MIME-mismatch flags, and title scraping.
+- 🧩 **URL-mask generator** — build and probe URLs from a template with wildcards
+  ( `?` `*` `[a-z]` `{n,m}` `(a,b,c)` `$` ) — great for hostname/path sweeps.
 - 🕸️ **Active (but safe) probes** — open redirect, reflected XSS, CRLF injection,
   and host-header injection, all with benign markers and no state-changing requests.
 - 🔓 **Access control & auth** — unauthenticated admin endpoints, 401/403 bypasses,
   weak JWTs, and IDOR indicators.
 - 🌐 **Subdomain discovery + takeover** — target-only enumeration with
   dangling-service takeover fingerprints.
+- 🎛️ **Request control** — custom headers, cookie, basic auth, user-agent, a global
+  request delay (rate limit), and status-code / title response filters.
 - 📊 **Actionable reports** — every finding rated Critical → Info and exportable
-  as Markdown or JSON.
+  as Markdown or JSON, plus a discovered-URL list export.
 
 <details>
 <summary><b>See the full list of checks</b></summary>
@@ -70,6 +77,50 @@
 
 </details>
 
+## Scan modes
+
+Pick a mode at the top of the control panel:
+
+### 🛡️ Site Scan
+The full vulnerability assessment described above — headers, TLS, cookies, secrets,
+injection, access control, subdomains, and more — with a **Quick → Max** depth control.
+
+### 🗂️ Content Discovery
+Wordlist-driven directory and file brute-forcing.
+
+- **Wordlist** — paste words, pick a local file, or give one or more URLs
+  (comma-separated). Leave it blank to use the built-in list. Point it at a large
+  list (e.g. [SecLists](https://github.com/danielmiessler/SecLists)) for deep scans.
+- **Discover directories** — pulls real directories from the page's links,
+  `robots.txt`, and `sitemap.xml`, then scans the wordlist inside each.
+- **Recursive** — follows directories discovered in responses and scans them too.
+- **Extensions** — append a list like `php,bak,old,~` to every word.
+- Flags **open directories**, **default files** (`index.php`, …), and
+  **Content-Type ↔ extension mismatches**, scrapes each page's `<title>`, and
+  secret-scans every non-HTML file it finds. Results land in a **Discovered** tab
+  (code · kind · size · title) that exports to text.
+
+### 🧩 URL Mask
+Generate URLs from a template and probe each one:
+
+| Wildcard | Meaning |
+| --- | --- |
+| `?` | one character from the domain alphabet |
+| `*` | grow: 1…N such characters (bounded by max length) |
+| `[a-z]` | one character from a range/set (e.g. `[a-z0-9]`) |
+| `{n,m}` | repeat the preceding set n–m times |
+| `(a,b,c)` | one alternative from the list |
+| `[...]?` `(...)?` | the set/alternatives, or nothing (optional) |
+| `$` | each word from the wordlist |
+
+Examples: `https://base[0-9]{0,3}.(com,org,net)` · `https://[a-z]ou?ube.com` ·
+`https://example.com/$`
+
+### 🎛️ Advanced request options (all modes)
+Custom headers, cookie, HTTP basic auth, user-agent, a millisecond delay between
+requests (a real global rate limit), and — for discovery/mask — ignore-codes,
+only-codes, and not-in-title filters.
+
 ## Requirements
 
 - macOS 13 or newer
@@ -90,14 +141,18 @@ Then double-click **WebScanner.app** or run `open WebScanner.app`.
 ## Usage
 
 1. Confirm you are authorized to test the target (checkbox).
-2. Enter a domain (e.g. `example.com` or `https://example.com`).
-3. Choose a scan depth — **Quick**, **Standard**, **Deep**, **Aggressive**, or **Max**.
-4. Click **Scan**, then expand any finding for its exploit path and fix.
-5. **Export** a Markdown or JSON report.
+2. Choose a **mode** — Site Scan, Content Discovery, or URL Mask.
+3. Enter the target: a domain (e.g. `example.com`) for Site Scan / Content Discovery,
+   or a wildcard template for URL Mask.
+4. Set mode options (scan depth, wordlist, extensions, template limits) and, if
+   needed, **Advanced request options**.
+5. Click **Scan**, then expand any finding for its exploit path and fix, or open the
+   **Discovered** tab for the reachable-URL list.
+6. **Export** a Markdown / JSON report, or the discovered-URL list as text.
 
-> **Scan depth:** Quick keeps to the homepage. Deep adds the crawl, JS analysis,
-> access-control tests, and active probes. Max adds wide subdomain enumeration —
-> it's the slowest and noisiest, so use it only with explicit permission.
+> **Scan depth (Site Scan):** Quick keeps to the homepage. Deep adds the crawl, JS
+> analysis, access-control tests, and active probes. Max adds wide subdomain
+> enumeration — it's the slowest and noisiest, so use it only with explicit permission.
 
 ## How it works
 

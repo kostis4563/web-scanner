@@ -19,9 +19,33 @@ struct HTTPResponse {
     var contentType: String { header("content-type") ?? "" }
 }
 
+/// Spaces out request *starts* by a fixed interval, giving a real global
+/// rate limit (the Python scanner's `-z` delay, but applied across all workers).
+actor RequestPacer {
+    private var nextEarliest: Date = .distantPast
+
+    func wait(intervalMs: Int) async {
+        guard intervalMs > 0 else { return }
+        let interval = Double(intervalMs) / 1000.0
+        let now = Date()
+        let start = max(now, nextEarliest)
+        nextEarliest = start.addingTimeInterval(interval)
+        let delay = start.timeIntervalSince(now)
+        if delay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+    }
+}
+
 final class HTTPClient: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
 
     let userAgent = "WebScanner/1.0 (+authorized-security-assessment)"
+
+    /// User-supplied options (cookie, basic auth, custom header, UA, delay)
+    /// applied to every request. Set once before a scan starts.
+    var options = RequestOptions.none
+
+    private let pacer = RequestPacer()
 
     private var lenientSession: URLSession!
 
@@ -77,8 +101,13 @@ final class HTTPClient: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
                followRedirects: Bool = true) async -> HTTPResponse? {
         var req = URLRequest(url: url)
         req.httpMethod = method
+        // Global user options first, then per-call headers so probe-specific
+        // headers (Origin, X-Forwarded-Host, …) always win.
+        for (k, v) in options.resolvedHeaders() { req.setValue(v, forHTTPHeaderField: k) }
         for (k, v) in extraHeaders { req.setValue(v, forHTTPHeaderField: k) }
         if let body { req.httpBody = body }
+
+        await pacer.wait(intervalMs: options.delayMs)
 
         let session = followRedirects ? lenientSession! : noRedirectSession!
         do {

@@ -204,6 +204,74 @@ enum ScanIntensity: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+/// What the scanner does when you press Scan.
+enum ScanMode: String, CaseIterable, Identifiable, Codable {
+    /// The full vulnerability assessment (the app's original behavior).
+    case siteScan
+    /// Wordlist-driven directory/file brute-forcing (port of `scaner.py`).
+    case contentDiscovery
+    /// URL-mask generation + probing (port of `scanurls.py`).
+    case urlMask
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .siteScan:         return "Site Scan"
+        case .contentDiscovery: return "Content Discovery"
+        case .urlMask:          return "URL Mask"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .siteScan:
+            return "Full vulnerability assessment: headers, TLS, secrets, injection, access control, subdomains."
+        case .contentDiscovery:
+            return "Brute-force directories & files from a wordlist. Discovers directories, recurses, fuzzes extensions, scrapes titles, and flags open directories."
+        case .urlMask:
+            return "Generate URLs from a template with wildcards ( ? * [a-z] {n,m} (a,b,c) $ ) and probe each one."
+        }
+    }
+}
+
+/// One reachable URL found during content discovery or URL-mask scanning.
+/// This is the raw "hit list" (like the Python scanner's console output),
+/// separate from security Findings.
+struct DiscoveredURL: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var url: String
+    var status: Int
+    var length: Int
+    var contentType: String
+    var title: String?
+    var kind: Kind
+    /// Whether this hit is notable (open directory, MIME mismatch, or secret-bearing).
+    var notable: Bool = false
+
+    enum Kind: String, Codable {
+        case page          // an HTML page
+        case directory     // a reachable directory
+        case openDirectory // directory with auto-index enabled
+        case file          // a non-HTML file
+        case mismatch      // Content-Type disagrees with the file extension
+        case defaultFile   // index.html / index.php / default.aspx inside a dir
+
+        var label: String {
+            switch self {
+            case .page:          return "PAGE"
+            case .directory:     return "DIR"
+            case .openDirectory: return "OPEN DIR"
+            case .file:          return "FILE"
+            case .mismatch:      return "MISMATCH"
+            case .defaultFile:   return "DEFAULT"
+            }
+        }
+    }
+
+    static func == (lhs: DiscoveredURL, rhs: DiscoveredURL) -> Bool { lhs.url == rhs.url }
+}
+
 struct ScanReport: Codable {
     var target: String
     var finalURL: String
