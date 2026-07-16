@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:web scanner}",
+            "name": "Debug WebScanner",
+            "target": "WebScanner",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug WebScanner"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:web scanner}",
+            "name": "Release WebScanner",
+            "target": "WebScanner",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release WebScanner"
+        }
+    ]
+}

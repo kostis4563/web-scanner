@@ -1,0 +1,285 @@
+import Foundation
+
+enum Wordlists {
+
+    static let adminPaths: [String] = [
+        "admin", "admin/", "administrator", "administrator/", "admin/login", "admin/index.php",
+        "wp-admin/", "user/login", "users/sign_in", "login", "login.php", "signin",
+        "account/login", "auth/login", "cpanel", "webmail", "dashboard", "manage",
+        "management", "console", "portal", "backend", "cms", "admin.php",
+        "moderator", "adminpanel", "controlpanel", "sysadmin", "phpmyadmin/", "pma/",
+        "dbadmin/", "server-info", "solr/", "kibana/", "grafana/", "jenkins/",
+        "wp-login.php", "wp-json/", "xmlrpc.php", "wp-admin/admin-ajax.php", "wp-config.php", "wp-content/",
+        "wp-signup.php", "user/register", "user/password", "user/logout", "admin/config", "admin/content",
+        "admin/structure", "admin/reports/status", "core/install.php", "update.php", "install.php", "administrator/index.php",
+        "administrator/manifests/files/joomla.xml", "joomla/", "downloader/", "setup/", "magento_version", "index.php/admin/",
+        "rest/", "app/etc/local.xml", "app/etc/env.php", "magento/", "ghost/", "ghost/api/",
+        "strapi/", "content-manager/", "admin/auth/login", "typo3/", "typo3/index.php", "typo3conf/",
+        "typo3/install/", "umbraco/", "sitecore/", "sitecore/login", "concrete5/", "contao/",
+        "silverstripe/", "Security/login", "craft/", "moodle/", "login/index.php", "dnn/",
+        "episerver/", "kentico/", "liferay/", "c/portal/login", "group/control_panel", "adminer/",
+        "adminer.php", "adminer/adminer.php", "myadmin/", "mysql/", "mysqladmin/", "phpMyAdmin/",
+        "phpmyadmin2/", "phpMyAdmin-latest/", "_phpmyadmin/", "sqladmin/", "websql/", "db/",
+        "database/", "phppgadmin/", "pgadmin/", "pgadmin4/", "mongo-express/", "mongoadmin/",
+        "sqlbuddy/", "dbadmin.php", "rabbitmq/", "portainer/", "consul/", "v1/catalog/services",
+        "vault/", "v1/sys/health", "minio/", "minio/login", "airflow/", "airflow/home",
+        "superset/", "superset/login/", "metabase/", "metabase/setup", "redis-commander/", "cerebro/",
+        "kafka-manager/", "cmak/", "traefik/", "traefik/dashboard/", "api/rawdata", "kong/",
+        "apisix/dashboard/", "tyk/", "rundeck/", "_cat/indices", "_cluster/health", "_cluster/settings",
+        "_search", "_nodes", "_plugin/head/", "_cat/health", "_snapshot", "prometheus/",
+        "metrics", "targets", "api/v1/query", "api/v1/status/config", "graph", "app/kibana",
+        "app/dev_tools", "actuator/", "actuator/health", "actuator/env", "actuator/beans", "actuator/mappings",
+        "actuator/metrics", "actuator/httptrace", "actuator/heapdump", "actuator/threaddump", "actuator/loggers", "actuator/gateway/routes",
+        "env", "heapdump", "jolokia/", "swagger/", "swagger-ui/", "swagger-ui.html",
+        "swagger/index.html", "swagger-ui/index.html", "api-docs/", "api/swagger", "v2/api-docs", "v3/api-docs",
+        "openapi.json", "swagger.json", "swagger/v1/swagger.json", "redoc/", "rapidoc/", "docs/",
+        "api/docs", "graphql", "graphql/", "graphiql", "graphiql/", "playground",
+        "altair/", "voyager/", "api/graphql", "graphql/console", "manager/", "manager/html",
+        "manager/status", "host-manager/", "host-manager/html", "jmx-console/", "web-console/", "admin-console/",
+        "invoker/", "examples/", "tomcat/", "console/login/LoginForm.jsp", "CFIDE/administrator/", "cfide/",
+        "ibm/console/", "adminconsole/", "auth/", "auth/admin/", "auth/realms/master/", "admin/master/console/",
+        "keycloak/", "oauth/authorize", "oauth/token", "oauth/", "saml/", "sso/",
+        ".well-known/openid-configuration", "authenticate", "sonar/", "sonarqube/", "nexus/", "service/rest/",
+        "artifactory/", "harbor/", "argocd/", "rancher/", "teamcity/", "bamboo/",
+        "gocd/", "drone/", "concourse/", "spinnaker/", "gitlab/", "gitea/",
+        "gogs/", "nagios/", "zabbix/", "netdata/", "munin/", "cacti/",
+        "observium/", "librenms/", "monit/", "supervisor/", "glances/", "statping/",
+        "smokeping/", "prtg/", "icinga/", "uptime-kuma/", "_utils/", "couchdb/",
+        "chronograf/", "influxdb/", "neo4j/", "browser/", "arangodb/", "clickhouse/",
+        "rethinkdb/", "webmin/", "usermin/", "plesk/", "whm/", "ispconfig/",
+        "directadmin/", "virtualmin/", "vesta/", "cyberpanel/", "froxlor/", "admin/home",
+        "admin/dashboard", "admin/settings", "admin/users", "admin/login.php", "admin/login.aspx", "admin/login.jsp",
+        "admin/login.html", "adminarea/", "admin1/", "admin2/", "adm/", "useradmin/",
+        "siteadmin/", "site-admin/", "panel/", "cp/", "accounts/login", "login.aspx",
+        "login.jsp", "login.html", "login.action", "login.do", "member/login", "users/login",
+        "session/new", "sessions/new", "sign-in", "server-status", ".htpasswd", ".htaccess",
+        "info.php", "phpinfo.php", "test.php", "healthz", "readyz", "livez",
+        "version", "debug/pprof/", "debug/vars", "api/v1/namespaces", ".git/config", ".env",
+    ]
+
+    static let extraFiles: [String] = [
+        "config.json", "config.yaml", "config.yml", "settings.py", "settings.json", "secrets.json",
+        "credentials.json", "credentials", "app.config", "appsettings.json", "appsettings.Development.json", "local.settings.json",
+        "wp-config.php.txt", "wp-config.php.save", "wp-config.php.old", "config.php.txt", "config.old", "config.inc.php.bak",
+        "database.yml.bak", "db.php.bak", "connection.php.bak", "backup", "backups/", "backup/",
+        "old/", "temp/", "tmp/", "test.php", "debug.log", "error.log",
+        "logs/", "access.log", "npm-debug.log", "storage/logs/laravel.log", "log/production.log", ".env.testing",
+        ".env.staging", "docker-compose.override.yml", "sftp-config.json", "deploy.php", "deployment.json", "install.php",
+        "phpunit.xml", ".env.php", "env.js", "environment.js", "config.js", "sitemap.xml",
+        "crossdomain.xml", "clientaccesspolicy.xml", "package.json", "yarn.lock", "bower.json", "gruntfile.js",
+        "readme.md", "changelog.md", "license.txt", "humans.txt", "composer.json", "composer.lock",
+        "tsconfig.json", "jsconfig.json", "webpack.config.js", "webpack.mix.js", "next.config.js", "nuxt.config.js",
+        "vite.config.js", "vite.config.ts", "angular.json", ".npmrc", ".yarnrc", ".yarnrc.yml",
+        "Gemfile", "Gemfile.lock", "Pipfile", "Pipfile.lock", "requirements.txt", "go.mod",
+        "go.sum", "pom.xml", "build.gradle", "build.gradle.kts", "gradle.properties", "package-lock.json",
+        "pnpm-lock.yaml", ".babelrc", "babel.config.js", "tailwind.config.js", "postcss.config.js", "rollup.config.js",
+        "jest.config.js", "karma.conf.js", ".eslintrc.json", ".eslintrc.js", ".prettierrc", "setup.py",
+        "setup.cfg", "pyproject.toml", "manage.py", "wsgi.py", "Rakefile", "Procfile",
+        "config.ru", "mix.exs", ".nvmrc", ".ruby-version", ".python-version", ".tool-versions",
+        "artisan", "symfony.lock", "deno.json", "bun.lockb", "auth.json", "terraform.tfvars",
+        "terraform.tfvars.json", "terraform.tfstate", "terraform.tfstate.backup", "main.tf", "variables.tf", ".terraform.lock.hcl",
+        ".terraform/", "serverless.yml", "serverless.yaml", ".aws/config", ".aws/credentials", "kustomization.yaml",
+        "values.yaml", "Chart.yaml", "ansible.cfg", "playbook.yml", "inventory.ini", "hosts.ini",
+        "Vagrantfile", ".kube/config", "Dockerfile", ".dockerignore", ".dockercfg", "docker-compose.yml",
+        "docker-compose.yaml", "docker-compose.prod.yml", "docker-compose.production.yml", "cloudbuild.yaml", "app.yaml", "azure-pipelines.yml",
+        ".gitlab-ci.yml", ".travis.yml", "Jenkinsfile", "buildspec.yml", "pulumi.yaml", ".circleci/config.yml",
+        "deployment.yaml", "aws-exports.js", "db.sqlite", "db.sqlite3", "database.sqlite", "database.sqlite3",
+        "data.db", "data.sqlite", "dump.rdb", "dump.sql", "dump.sql.gz", "database.sql",
+        "backup.sql", "backup.sql.gz", "db.sql", "db_backup.sql", "database_backup.sql", "mysql.sql",
+        "app.log", "application.log", "production.log", "development.log", "php_errors.log", "php_error.log",
+        "error_log", "errors.log", "access_log", "system.log", "server.log", "catalina.out",
+        "yarn-error.log", "pnpm-debug.log", "lerna-debug.log", "audit.log", "security.log", "cron.log",
+        "xmlrpc.log", "slow.log", "query.log", "backup.zip", "backup.tar.gz", "backup.tar",
+        "backup.rar", "backup.7z", "site.zip", "www.zip", "public_html.zip", "wwwroot.zip",
+        "log/", ".vscode/", ".vscode/settings.json", ".vscode/launch.json", ".vscode/sftp.json", ".idea/",
+        ".idea/workspace.xml", ".idea/dataSources.xml", ".idea/dataSources.local.xml", "workspace.xml", ".project", ".classpath",
+        "nbproject/", ".sublime-project", ".sublime-workspace", ".editorconfig", ".DS_Store", "Thumbs.db",
+        "phpinfo.php", "info.php", "i.php", "php.php", "phptest.php", "php_info.php",
+        "infophp.php", "adminer.php", "adminer.php.txt", "server-status", "server-info", "test.html",
+        ".env", ".env.local", ".env.production", ".env.development", ".env.dev", ".env.prod",
+        ".env.test", ".env.example", ".env.dist", ".env.backup", ".env.bak", ".env.old",
+        ".env.save", ".env.vault", "vault.yml", ".vault-token", "secrets.yml", "secrets.yaml",
+        "credentials.yml", "credentials.xml", "master.key", "config/master.key", "config/credentials.yml.enc", ".htpasswd",
+        ".htaccess", ".netrc", ".pgpass", ".my.cnf", ".mysql_history", ".bash_history",
+        ".zsh_history", ".git/config", ".git/HEAD", ".git/index", ".git/logs/HEAD", ".gitconfig",
+        ".svn/entries", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", ".ssh/id_rsa",
+        ".ssh/authorized_keys", ".s3cfg", "service-account.json", "serviceaccount.json", "gcloud-service-key.json", "firebase.json",
+        ".firebaserc", "google-services.json", "token.json", "oauth.json", "private.key", "privatekey.pem",
+        "server.key", "server.pem", "cert.pem", "key.pem", "keystore.jks", ".keystore",
+        "swagger.json", "openapi.json", "openapi.yaml", "config.php.bak", "config.php.old", "config.php~",
+        "config.php.save", "config.php.orig", "config.php.swp", "config.inc.php", "wp-config.php.bak", "wp-config.php~",
+        "wp-config.php.orig", "wp-config.php.swp", "wp-config.php.dist", "wp-config.bak", "web.config", "web.config.bak",
+        "WEB-INF/web.xml", "configuration.php", "configuration.php.bak", "settings.php", "sites/default/settings.php", "database.php",
+        "parameters.yml", "application.properties", "application.yml", "application.yaml", "app/etc/env.php", "app/etc/local.xml",
+        "local.xml", "config.bak", "config.yml.bak", "database.yml", ".maintenance", "capfile",
+        "deploy.rb",
+    ]
+
+    static let envFileNames: [String] = [
+        ".env", ".env.local", ".env.production", ".env.prod", ".env.dev", ".env.development",
+        ".env.staging", ".env.stage", ".env.test", ".env.testing", ".env.backup", ".env.bak",
+        ".env.old", ".env.save", ".env.orig", ".env.example.local", ".env.php", ".env.js",
+        "env", ".environment", ".flaskenv", ".env.example", ".env.sample", ".env.template",
+        ".env.dist", ".env.default", ".env.defaults", ".env.example.php", ".env.example.dist", ".env.example.txt",
+        ".env-example", ".env-sample", ".env.production.local", ".env.development.local", ".env.test.local", ".env.testing.local",
+        ".env.staging.local", ".env.stage.local", ".env.local.php", ".env.ci", ".env.docker", ".env.live",
+        ".env.qa", ".env.uat", ".env.sandbox", ".env.demo", ".env.preview", ".env.beta",
+        ".env.release", ".env.build", ".env.deploy", ".env.server", ".env.api", ".env.db",
+        ".env.database", ".env.shared", ".env.common", ".env.base", ".env.override", ".env.secret",
+        ".env.secrets", ".env.key", ".env.keys", ".env.vault", ".env.me", ".env.enc",
+        ".env.gpg", ".env.json", ".env.yaml", ".env.yml", ".env.ini", ".env.txt",
+        ".env.dev.local", ".env.prod.local", ".env~", ".env.swp", ".env.swo", ".env.bak.php",
+        ".env.php.bak", ".env.copy", ".env.tmp", ".env.temp", ".env.1", ".env.2",
+        ".env.new", ".env.original", ".env.production.bak", ".env.local.bak", "env.example", "env.sample",
+        "env.template", "env.dist", "env.php", "env.js", "env.json", "env.txt",
+        "env.bak", "env.ini", "env.local", "env.production", "env.prod", "env.dev",
+        "environment.ts", "environment.prod.ts", "environment.staging.ts", "src/environments/environment.ts", "src/environments/environment.prod.ts", "environments/",
+        "master.key", "config/master.key", "credentials.yml.enc", "config/credentials.yml.enc", "config/credentials/production.key", "config/credentials/production.yml.enc",
+        "secrets.yml", "config/secrets.yml", "config/database.yml", "database.yml", "config/application.yml", "settings.py",
+        "local_settings.py", "settings_local.py", "secrets.py", "config.py", "instance/config.py", "parameters.yml",
+        "app/config/parameters.yml", "config/parameters.yml", "parameters.php", "config.php", "config.php.bak", "config.php.old",
+        "config.php~", "config.inc.php", "config.inc.php.bak", "configuration.php", "configuration.php-dist", "wp-config.php",
+        "wp-config.php.bak", "wp-config.php.old", "wp-config.php.save", "wp-config.php.orig", "wp-config.php.swp", "wp-config.php~",
+        "wp-config.bak", "wp-config.old", "wp-config-sample.php", "wp-config.php.dist", "wp-config.php.txt", "LocalSettings.php",
+        "settings.php", "default.settings.php", "sites/default/settings.php", "db.php", "database.php", "dbconfig.php",
+        "includes/config.php", ".npmrc", ".yarnrc", ".yarnrc.yml", "ecosystem.config.js", "config.json",
+        "config.yml", "config.yaml", "docker-compose.yml", "docker-compose.yaml", "docker-compose.override.yml", "docker-compose.prod.yml",
+        "docker-compose.production.yml", "docker-compose.dev.yml", ".dockercfg", ".docker/config.json", "Dockerrun.aws.json", "docker/.env",
+        "secrets.yaml", "secret.yaml", "secret.yml", "sealed-secret.yaml", "values.yaml", "values-prod.yaml",
+        "values-production.yaml", "configmap.yaml", ".aws/credentials", ".aws/config", "credentials", ".boto",
+        ".s3cfg", ".netrc", ".pgpass", ".my.cnf", ".git-credentials", ".pypirc",
+        ".composer/auth.json", "auth.json", ".bundle/config", ".gem/credentials", ".terraformrc", "terraform.tfvars",
+        "terraform.tfvars.json", "terraform.tfstate", "terraform.tfstate.backup", ".htpasswd", ".sentryclirc", "rclone.conf",
+        ".kube/config", "kubeconfig", "serviceaccount.json", "service-account.json", "service_account.json", "gcp-credentials.json",
+        "credentials.json", "client_secret.json", "client_secrets.json", "google-services.json", "GoogleService-Info.plist", "firebase.json",
+        ".firebaserc", "firebase-adminsdk.json", "secrets.json", "secret.json", "secrets.txt", "secrets.env",
+        "secret.env", "secrets.ini", "secrets.php", ".secrets", ".secret", ".credentials",
+        "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", ".ssh/id_rsa", "private.key",
+        "server.key", "key.pem", "privatekey.pem", "application.yml", "application.properties", "application-prod.yml",
+        "application-prod.properties", "application-dev.yml", "bootstrap.yml", "appsettings.json", "appsettings.Development.json", "appsettings.Production.json",
+        "web.config", "web.config.bak", "connectionstrings.config", "app.config",
+    ]
+
+    static let envLeakSiblings: [String] = [
+        "env", "env.txt", "env.bak", "env.save", "env.old", "env.dist",
+        "env.backup", "env.local", "env.prod", "env.production", "env.js", "env.php",
+        ".env.txt", ".env.bak", ".env.save", ".env.old", ".env.orig", ".env.backup",
+        ".env~", "env~", ".env.copy", ".env.swp", ".env.swo", "..env.swp",
+        "..env.swo", ".env.un~", "env.yaml", "env.yml", "env.json", "env.ini",
+        "env.xml", "env.conf", "env.config", "env.cfg", "env.properties", "env.py",
+        "env.sh", "env.inc.php", "env.env", "env.dev", "env.development", "env.staging",
+        "env.stage", "env.test", "env.testing", "env.default", "env.example", "env.sample",
+        "env.template", "env.live", "env.docker", "env.orig", "env.copy", "env.new",
+        "env.tmp", "env.temp", "env.bkp", "env.1", "env.2", "env.bak1",
+        "env.swp", "env.swo", "env.swn", "env.un~", "env.rej", "#env#",
+        "env.zip", "env.tar", "env.gz", "env.tgz", "env.tar.gz", "env.7z",
+        "env.rar", "env copy", "env copy.txt", ".env copy", "dev.env", "development.env",
+        "prod.env", "production.env", "local.env", "staging.env", "stage.env", "test.env",
+        "docker.env", "secrets.env", "app.env", "config.env", "dotenv", ".dotenv",
+        "dotenv.txt", "dotenv.bak", "dotenv.sample", "dotenv.example", ".env.dev", ".env.development",
+        ".env.development.local", ".env.dev.local", ".env.prod", ".env.production", ".env.production.local", ".env.local",
+        ".env.local.php", ".env.staging", ".env.staging.local", ".env.stage", ".env.test", ".env.test.local",
+        ".env.testing", ".env.dist", ".env.default", ".env.example", ".env.sample", ".env.template",
+        ".env.live", ".env.docker", ".env.ci", ".env.json", ".env.yaml", ".env.yml",
+        ".env.ini", ".env.php", ".env.js", ".env.bak.php", ".env.secret", ".env.secrets",
+        ".env.enc", ".env.gpg", ".env.vault", ".env.keys", ".env.swn", "..env.swn",
+        ".env.rej", "#.env#", ".env.zip", ".env.tar.gz", ".env.gz", ".flaskenv",
+        ".environment", ".env-example", ".env-sample", "env-example",
+    ]
+
+    static let commonDirs: [String] = [
+        "", "app/", "api/", "admin/", "backend/", "public/",
+        "web/", "www/", "src/", "config/", "conf/", "laravel/",
+        "storage/", "private/", "application/", "htdocs/", "wp-content/", "assets/",
+        "dist/", "build/", "server/", "current/", "shared/", "html/",
+        "site/", "core/", "system/", "var/", "var/www/", "var/www/html/",
+        "var/cache/", "var/log/", "releases/", ".git/", ".svn/", ".hg/",
+        ".idea/", ".vscode/", "vendor/", "node_modules/", "target/", ".next/",
+        ".nuxt/", ".output/", "out/", ".svelte-kit/", "bootstrap/", "bootstrap/cache/",
+        "database/", "routes/", "resources/", "storage/logs/", "app/config/", "config/environments/",
+        "config/credentials/", "db/", "log/", "tmp/", "static/", "staticfiles/",
+        "media/", "settings/", "instance/", ".venv/", "functions/", ".serverless/",
+        ".vercel/", ".netlify/", ".firebase/", "wp-admin/", "wp-includes/", "wp-content/uploads/",
+        "wp-content/plugins/", "wp-content/themes/", "app/etc/", "pub/", "generated/", "sites/default/",
+        "sites/default/files/", "modules/", "themes/", "typo3conf/", "typo3temp/", "fileadmin/",
+        "administrator/", "protected/", "runtime/", "writable/", "webroot/", "module/",
+        "framework/", "WEB-INF/", "META-INF/", "wwwroot/", "App_Data/", "cgi-bin/",
+        "docker/", ".docker/", "k8s/", "kubernetes/", "helm/", "charts/",
+        "manifests/", "terraform/", ".terraform/", "ansible/", ".kube/", ".github/",
+        ".github/workflows/", ".gitlab/", ".circleci/", "ci/", "jenkins/", "deploy/",
+        "deployment/", "shared/config/", ".aws/", ".azure/", ".gcloud/", ".ssh/",
+        ".gnupg/", "secrets/", "credentials/", "keys/", "certs/", "ssl/",
+        "tls/", "vault/", "env/", "environments/", ".config/", "phpmyadmin/",
+        "includes/", "inc/", "lib/", "uploads/", "install/", "setup/",
+        "backup/", "backups/", "logs/", "cache/", "data/", "sql/",
+        ".well-known/", "infra/", "ops/", "scripts/", "tests/",
+    ]
+
+    static let adminSignatures: [String] = [
+        "login", "log in", "sign in", "password", "username", "dashboard",
+        "admin", "authentication", "csrf", "please log in", "control panel",
+    ]
+
+    static func backupNames(forHost host: String) -> [String] {
+
+        var h = host.lowercased()
+        if h.hasPrefix("www.") { h = String(h.dropFirst(4)) }
+        let label = h.split(separator: ".").first.map(String.init) ?? h
+
+        let hostStems = [h, label, "www"]
+        let genericStems = [
+            "backup", "backups", "site", "web", "database", "db", "dump", "wwwroot",
+            "archive", "website", "webroot", "htdocs", "public_html", "public", "html",
+            "httpdocs", "webapp", "sql", "mysql", "mysqldump", "data", "dbbackup",
+            "db_backup", "database_backup", "full", "fullbackup", "sitebackup", "site_backup",
+            "prod", "production", "staging", "dev", "test", "latest", "final", "source",
+            "files", "storage", "release", "releases", "old", "bak", "wordpress", "app",
+        ]
+        let exts = [
+            "zip", "tar.gz", "tgz", "tar", "sql", "sql.gz", "rar", "7z", "bak", "gz",
+            "old", "bz2", "tar.bz2", "tbz2", "xz", "tar.xz", "txz", "zst", "tar.zst",
+            "war", "jar", "dump", "dmp", "sqlite", "sqlite3", "db", "bkp", "back",
+            "sav", "save", "swp", "orig", "iso", "img",
+        ]
+
+        var out: [String] = []
+        var seen = Set<String>()
+        func add(_ s: String) { if seen.insert(s).inserted { out.append(s) } }
+        for stem in hostStems + genericStems {
+            for ext in exts { add("\(stem).\(ext)") }
+        }
+
+        for fixed in ["backup.tar", "backup.tgz", "backup.rar", "www.tar.gz",
+                      "html.zip", "public_html.zip", "htdocs.zip", "site-backup.zip"] {
+            add(fixed)
+        }
+
+        return Array(out.prefix(600))
+    }
+
+    static func adminFinding(path: String, response: HTTPResponse) -> Finding {
+        Finding(
+            title: "Reachable admin/sensitive endpoint: /\(path)",
+            severity: .low,
+            category: "Attack Surface",
+            location: response.finalURL.absoluteString,
+            detail: "A request to /\(path) returned an accessible page (HTTP \(response.status)) that resembles a login or management interface.",
+            evidence: "URL: \(response.finalURL.absoluteString)\nHTTP \(response.status), \(response.body.count) bytes\nPreview: \(snippet(response.text, max: 140))",
+            exploit: "Exposed admin/login interfaces are prime targets for brute-force, default-credential, and known-CVE attacks. Reducing their exposure shrinks your attack surface.",
+            remediation: "Restrict admin interfaces to trusted IPs/VPN, require strong authentication and MFA, add rate-limiting, and remove any unused panels.",
+            reference: "CWE-284: Improper Access Control")
+    }
+
+    static func extraFileFinding(path: String, response: HTTPResponse) -> Finding {
+        Finding(
+            title: "Reachable file: /\(path)",
+            severity: .low,
+            category: "Information Disclosure",
+            location: response.finalURL.absoluteString,
+            detail: "A request to /\(path) returned readable content (HTTP \(response.status)). Review whether it should be public.",
+            evidence: "URL: \(response.finalURL.absoluteString)\nHTTP \(response.status), \(response.body.count) bytes\nPreview: \(snippet(response.text, max: 140))",
+            exploit: "Config, log, and backup files left in the web root frequently leak internal paths, versions, or credentials.",
+            remediation: "Remove the file from the web root if it is not meant to be public, or deny access to it at the web server.",
+            reference: "CWE-200: Exposure of Sensitive Information")
+    }
+}
