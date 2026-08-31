@@ -34,8 +34,19 @@ enum ReportExporter {
             if let ref = f.reference { out += "- **Reference:** \(ref)\n" }
             out += "\n**What it is:** \(f.detail)\n\n"
             out += "**Evidence:**\n\n```\n\(f.evidence)\n```\n\n"
-            out += "**How it could be exploited:** \(f.exploit)\n\n"
-            out += "**How to fix it:** \(f.remediation)\n\n"
+            if let content = f.capturedContent, !content.isEmpty {
+
+                let fence = content.contains("```") ? "````" : "```"
+                out += "<details><summary><strong>File contents</strong> "
+                out += "(\(content.components(separatedBy: "\n").count) lines)</summary>\n\n"
+                out += "\(fence)\n\(content)\n\(fence)\n\n</details>\n\n"
+            }
+            let perf = f.category == "Performance"
+            out += "**\(perf ? "Impact on users" : "How it could be exploited"):** \(f.exploit)\n\n"
+            if let repro = f.reproduction, !repro.isEmpty {
+                out += "**Proof of concept (run in terminal):**\n\n```sh\n\(repro)\n```\n\n"
+            }
+            out += "**\(perf ? "How to make it faster" : "How to fix it"):** \(f.remediation)\n\n"
             out += "---\n\n"
         }
         return out

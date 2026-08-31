@@ -5,10 +5,12 @@ enum JSAnalysis {
     private static let interestingExts: Set<String> = [
         "env", "json", "yml", "yaml", "config", "conf", "ini", "properties",
         "sql", "bak", "old", "pem", "key", "cfg", "tfstate", "php",
+        "toml", "tfvars", "pfx", "p12", "crt", "keystore",
     ]
     private static let interestingNames: [String] = [
         ".env", "config", "secret", "credential", "settings", "database",
         "backup", "dump", ".git/", "id_rsa", "private",
+        ".npmrc", ".netrc", ".pgpass", ".htpasswd",
     ]
 
     private static let stringLiteralRegex = try! NSRegularExpression(
@@ -158,6 +160,77 @@ enum JSAnalysis {
              remediation: "Use https:// for all API/resource requests and enable HSTS.",
              reference: "CWE-319: Cleartext Transmission of Sensitive Information",
              category: "Transport Security"),
+
+        Rule("location assignment / navigation sink", .info,
+             "(?:window\\.location|document\\.location|location\\.href)\\s*=\\s*[^=]|\\blocation\\.(?:assign|replace)\\s*\\(",
+             detail: "Client code sets location.href / location (or calls location.assign/replace), navigating the browser to a computed URL.",
+             exploit: "If the destination is influenced by user input (URL params, hash, storage, postMessage) an attacker can force an open redirect; a `javascript:` value would execute in the page's origin (DOM XSS).",
+             remediation: "Validate the target against an allow-list of same-origin paths before navigating and reject non-http(s) schemes; never build the URL from unvalidated input.",
+             reference: "CWE-601: URL Redirection to Untrusted Site (Open Redirect)"),
+
+        Rule("jQuery selector built from location (DOM XSS)", .low,
+             "\\$\\(\\s*(?:window\\.|document\\.)?location\\.(?:hash|search|href)",
+             detail: "A jQuery selector is constructed directly from location.hash/search/href.",
+             exploit: "jQuery parses a string like $('#'+location.hash) as HTML when it starts with '<', so a URL fragment such as #<img src=x onerror=alert(1)> executes script - a classic DOM XSS.",
+             remediation: "Never pass location-derived strings to $(); use document.querySelector with a fixed selector, or strictly validate/anchor the value first.",
+             reference: "CWE-79: DOM-based Cross-Site Scripting"),
+
+        Rule("jQuery .html() sink", .info,
+             "\\.html\\s*\\(\\s*[^)\\s]",
+             detail: "jQuery's .html(value) parses the argument as HTML and inserts it into the DOM (the no-argument getter form is not matched).",
+             exploit: "If the value contains untrusted input it runs injected markup or event-handler scripts - DOM XSS.",
+             remediation: "Use .text() for untrusted data, or sanitize with a vetted library (DOMPurify) before calling .html().",
+             reference: "CWE-79: DOM-based Cross-Site Scripting"),
+
+        Rule("setTimeout/setInterval with string argument", .low,
+             "\\b(?:setTimeout|setInterval)\\s*\\(\\s*[\"'`]",
+             detail: "setTimeout/setInterval is called with a string literal as the first argument, which the engine evaluates like eval().",
+             exploit: "If any part of that string is attacker-influenced it yields arbitrary JavaScript execution with full DOM/session access.",
+             remediation: "Pass a function reference instead of a string, e.g. setTimeout(fn, 100).",
+             reference: "CWE-95: Eval Injection"),
+
+        Rule("Insecure WebSocket (ws://)", .low,
+             "new\\s+WebSocket\\s*\\(\\s*[\"'`]ws://",
+             detail: "A WebSocket is opened over the plaintext ws:// scheme.",
+             exploit: "On an HTTPS page this is mixed content: frames and any tokens exchanged travel in cleartext and can be intercepted or modified by a network attacker.",
+             remediation: "Use the encrypted wss:// scheme for all WebSocket connections.",
+             reference: "CWE-319: Cleartext Transmission of Sensitive Information",
+             category: "Transport Security"),
+
+        Rule("iframe srcdoc assignment", .info,
+             "\\.srcdoc\\s*=\\s*[^=]",
+             detail: "An iframe's srcdoc property is assigned, embedding an inline HTML document.",
+             exploit: "If the assigned HTML contains untrusted input, scripts run inside the frame (which shares the parent's origin unless sandboxed) - DOM XSS.",
+             remediation: "Sanitize the HTML before assignment and add a restrictive sandbox attribute to the iframe.",
+             reference: "CWE-79: DOM-based Cross-Site Scripting"),
+
+        Rule("Range.createContextualFragment sink", .info,
+             "\\.createContextualFragment\\s*\\(",
+             detail: "createContextualFragment() parses a raw HTML string into DOM nodes.",
+             exploit: "Untrusted input passed here is parsed as HTML and can execute injected scripts - DOM XSS.",
+             remediation: "Sanitize the HTML (DOMPurify) before parsing, or build nodes with createElement/textContent.",
+             reference: "CWE-79: DOM-based Cross-Site Scripting"),
+
+        Rule("setAttribute on href/src", .info,
+             "\\.setAttribute\\s*\\(\\s*[\"'`](?:href|src|xlink:href|formaction)[\"'`]\\s*,",
+             detail: "setAttribute() sets an href/src/formaction attribute, potentially from a variable.",
+             exploit: "A `javascript:` (or `data:`) URI placed in these attributes executes when the link/element is activated; user-controlled values enable DOM XSS or open redirect.",
+             remediation: "Assign via the DOM property with scheme validation, and reject javascript:/data: URIs from untrusted input.",
+             reference: "CWE-79: DOM-based Cross-Site Scripting"),
+
+        Rule("document.cookie write", .info,
+             "document\\.cookie\\s*=\\s*[^=]",
+             detail: "Client code writes to document.cookie.",
+             exploit: "Cookies set from JavaScript cannot be HttpOnly, so any session/auth value stored here is readable by script and exfiltrated by a single XSS; values built from user input can also inject extra cookie attributes.",
+             remediation: "Set session cookies from the server with HttpOnly, Secure and SameSite; do not store auth tokens via document.cookie.",
+             reference: "CWE-1004: Sensitive Cookie Without HttpOnly Flag"),
+
+        Rule("document.domain assignment", .low,
+             "document\\.domain\\s*=\\s*[^=]",
+             detail: "Client code assigns to document.domain, relaxing the same-origin policy to a parent domain.",
+             exploit: "Any sibling subdomain (including a compromised or attacker-controlled one) that sets the same value gains full DOM access to this page; the feature is deprecated and being removed by browsers.",
+             remediation: "Remove document.domain; use postMessage with explicit origin checks for cross-subdomain communication.",
+             reference: "CWE-346: Origin Validation Error"),
     ]
 
     static func sinkHits(in text: String, source: String) -> [SinkHit] {

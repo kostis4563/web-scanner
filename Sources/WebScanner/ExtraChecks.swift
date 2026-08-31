@@ -43,7 +43,7 @@ enum ExtraChecks {
                   u.scheme == "http" || u.scheme == "https",
                   isFirstParty(u.host, base: sameHost) else { continue }
             let ext = u.pathExtension.lowercased()
-            if ext == "js" { continue }   
+            if ext == "js" { continue }
             let path = u.path.lowercased()
             let keep = scannableAssetExts.contains(ext)
                 || (ext.isEmpty && configEndpointMarkers.contains { path.contains($0) })
@@ -294,7 +294,7 @@ enum ExtraChecks {
                       let u = URL(string: raw, relativeTo: pageURL)?.absoluteURL,
                       u.scheme == "http" || u.scheme == "https" else { continue }
                 if isFirstParty(u.host, base: sameHost) { continue }
-                if lower.contains("integrity") { continue }              
+                if lower.contains("integrity") { continue }
                 if seen.insert(u.absoluteString).inserted { offenders.append(u.absoluteString) }
                 if offenders.count >= 40 { break }
             }
@@ -356,6 +356,50 @@ enum ExtraChecks {
             reference: "CWE-352: Cross-Site Request Forgery")]
     }
 
+    static func getFormTargets(html: String, pageURL: URL, sameHost: String) -> [URL] {
+        guard let re = try? NSRegularExpression(pattern: "<form\\b[\\s\\S]*?</form>", options: [.caseInsensitive]) else { return [] }
+        let ns = html as NSString
+        var out: [URL] = []
+        var seenKeys = Set<String>()
+        for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)).prefix(30) {
+            let form = ns.substring(with: m.range)
+            let lower = form.lowercased()
+
+            if lower.contains("method=\"post\"") || lower.contains("method='post'") || lower.contains("method=post") { continue }
+
+            let actionRaw = firstMatch("action\\s*=\\s*[\"']([^\"']*)[\"']", in: form)
+            let action = URL(string: (actionRaw?.isEmpty == false ? actionRaw! : pageURL.absoluteString),
+                             relativeTo: pageURL)?.absoluteURL ?? pageURL
+            guard action.scheme == "http" || action.scheme == "https",
+                  isFirstParty(action.host, base: sameHost) else { continue }
+
+            var names: [String] = []
+            var seenNames = Set<String>()
+            for tag in allMatches("<(?:input|textarea|select)\\b[^>]*>", in: form) {
+                let l = tag.lowercased()
+                if l.contains("type=\"submit\"") || l.contains("type='submit'") || l.contains("type=submit") { continue }
+                if l.contains("type=\"button\"") || l.contains("type='button'") || l.contains("type=button") { continue }
+                if l.contains("type=\"file\"") || l.contains("type='file'") || l.contains("type=file") { continue }
+                if l.contains("type=\"image\"") || l.contains("type='image'") || l.contains("type=image") { continue }
+                guard let n = firstMatch("name\\s*=\\s*[\"']([^\"']+)[\"']", in: tag), !n.isEmpty else { continue }
+                if seenNames.insert(n.lowercased()).inserted { names.append(n) }
+            }
+            guard !names.isEmpty,
+                  var comps = URLComponents(url: action, resolvingAgainstBaseURL: false) else { continue }
+            var items = comps.queryItems ?? []
+            let existing = Set(items.map { $0.name.lowercased() })
+            for n in names.prefix(8) where !existing.contains(n.lowercased()) {
+                items.append(URLQueryItem(name: n, value: ""))
+            }
+            comps.queryItems = items
+            guard let u = comps.url else { continue }
+            let key = (u.host ?? "") + u.path + "?" + items.map { $0.name.lowercased() }.sorted().joined(separator: ",")
+            if seenKeys.insert(key).inserted { out.append(u) }
+            if out.count >= 12 { break }
+        }
+        return out
+    }
+
     static func graphqlIntrospection(_ r: HTTPResponse) -> Finding? {
         let t = r.text.lowercased()
         guard r.status == 200,
@@ -367,7 +411,68 @@ enum ExtraChecks {
             evidence: "URL: \(r.finalURL.absoluteString)\n\(snippet(r.text, max: 160))",
             exploit: "Introspection hands an attacker the complete API schema - every type, query, and mutation - dramatically easing the discovery of sensitive operations and injection points.",
             remediation: "Disable introspection in production, require authentication, and add query depth/complexity limits and rate limiting.",
-            reference: "CWE-200")
+            reference: "CWE-200",
+            reproduction: "curl -s \"\(r.finalURL.absoluteString)\" -H 'Content-Type: application/json' -d '{\"query\":\"{__schema{types{name}}}\"}'")
+    }
+
+    private static let commentMarkers: [String] = [
+        "password", "passwd", "secret", "api_key", "apikey", "api-key",
+        "access_key", "token", "todo", "fixme", "hack", "xxx:", "debug",
+        "internal", "staging", "localhost", "username", "db_", "database",
+        "backdoor", "do not commit", "temporary", "disable", "bypass",
+    ]
+
+    static func htmlCommentLeaks(html: String, pageURL: URL) -> [Finding] {
+        guard let re = try? NSRegularExpression(pattern: "<!--([\\s\\S]{0,600}?)-->", options: []) else { return [] }
+        let ns = html as NSString
+        var interesting: [String] = []
+        var seen = Set<String>()
+        for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)).prefix(500) where m.numberOfRanges > 1 {
+            let comment = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = comment.lowercased()
+            guard comment.count > 6, commentMarkers.contains(where: { lower.contains($0) }) else { continue }
+
+            if lower.contains("[if ") || lower.contains("endif") || lower.contains("googletag")
+                || lower.contains("google tag") || lower.contains("noptimize") { continue }
+            let key = snippet(lower, max: 80)
+            if seen.insert(key).inserted { interesting.append(snippet(comment, max: 160)) }
+            if interesting.count >= 8 { break }
+        }
+        guard !interesting.isEmpty else { return [] }
+        return [Finding(
+            title: "Sensitive information in HTML comments",
+            severity: .low, category: "Information Disclosure", location: pageURL.absoluteString,
+            detail: "The page source contains developer comments referencing credentials, internal systems, or TODO/debug notes. HTML comments are delivered to every visitor.",
+            evidence: "Notable comment(s):\n" + interesting.map { "• \($0)" }.joined(separator: "\n"),
+            exploit: "Left-in comments leak internal hostnames, disabled or backdoor features, credentials, and implementation hints that help an attacker map and target the application.",
+            remediation: "Strip HTML/JS comments in production builds (most bundlers/minifiers do this) and never place secrets or internal notes in client-delivered markup.",
+            reference: "CWE-615: Inclusion of Sensitive Information in Source Code Comments")]
+    }
+
+    private static let internalIPRegex = try? NSRegularExpression(
+        pattern: "\\b(?:10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|172\\.(?:1[6-9]|2\\d|3[01])\\.\\d{1,3}\\.\\d{1,3}|192\\.168\\.\\d{1,3}\\.\\d{1,3}|169\\.254\\.\\d{1,3}\\.\\d{1,3})\\b",
+        options: [])
+
+    static func internalAddressLeaks(text: String, pageURL: URL) -> [Finding] {
+        guard let re = internalIPRegex else { return [] }
+        let ns = text as NSString
+        let range = NSRange(location: 0, length: min(ns.length, 1_500_000))
+        var hits: [String] = []
+        var seen = Set<String>()
+        for m in re.matches(in: text, range: range) {
+            let ip = ns.substring(with: m.range)
+            if seen.insert(ip).inserted { hits.append(ip) }
+            if hits.count >= 10 { break }
+        }
+        guard !hits.isEmpty else { return [] }
+        return [Finding(
+            title: "Internal/private IP address disclosed",
+            severity: .low, category: "Information Disclosure", location: pageURL.absoluteString,
+            detail: "The response exposes private (RFC 1918) or link-local IP addresses: \(hits.prefix(6).joined(separator: ", ")).",
+            evidence: "Addresses found:\n" + hits.prefix(10).joined(separator: "\n"),
+            exploit: "Internal IPs reveal the network topology behind the load balancer/proxy (subnets, backend hosts), helping an attacker choose SSRF targets and plan lateral movement after a foothold.",
+            remediation: "Do not emit internal addresses in responses, error pages, headers, or comments. Scrub debug output and configure proxies not to leak upstream/private hosts.",
+            reference: "CWE-200: Exposure of Sensitive Information")]
     }
 
     private static func firstMatch(_ pattern: String, in text: String) -> String? {
@@ -376,5 +481,11 @@ enum ExtraChecks {
         guard let m = re.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
               m.numberOfRanges > 1 else { return nil }
         return ns.substring(with: m.range(at: 1))
+    }
+
+    private static func allMatches(_ pattern: String, in text: String) -> [String] {
+        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
+        let ns = text as NSString
+        return re.matches(in: text, range: NSRange(location: 0, length: ns.length)).map { ns.substring(with: $0.range) }
     }
 }

@@ -386,6 +386,130 @@ enum SecretScanner {
             "(?i)analytics\\.load\\s*\\(\\s*[\"']([A-Za-z0-9]{20,32})[\"']",
             capture: 1,
             fix: "Segment write keys are meant to be client-side but allow anyone to send arbitrary events into your Segment source; rotate if abused and consider server-side ingestion for sensitive data."),
+
+        SecretPattern("Fly.io API Token", .high,
+            "FlyV1[ +]fm2_[A-Za-z0-9+/=_-]{30,}",
+            fix: "Revoke the Fly.io token (fly tokens revoke); it can deploy and control your apps and machines."),
+
+        SecretPattern("Render API Key", .high,
+            "\\brnd_[A-Za-z0-9]{28,}\\b",
+            fix: "Revoke the Render API key in Account Settings; it can manage your services and deploys."),
+
+        SecretPattern("Perplexity API Key", .high,
+            "\\bpplx-[A-Za-z0-9]{32,}\\b",
+            fix: "Revoke the Perplexity API key; usage is billed to you."),
+
+        SecretPattern("xAI API Key", .high,
+            "\\bxai-[A-Za-z0-9]{60,}\\b",
+            fix: "Revoke the xAI (Grok) API key; usage is billed to you."),
+
+        SecretPattern("OpenRouter API Key", .high,
+            "\\bsk-or-v1-[0-9a-f]{64}\\b",
+            fix: "Revoke the OpenRouter key; it can call any routed model and is billed to you."),
+
+        SecretPattern("Plaid Access Token", .high,
+            "\\baccess-(?:sandbox|development|production)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b",
+            fix: "Rotate the Plaid access token; it can pull the linked user's bank account and transaction data."),
+
+        SecretPattern("Brevo (Sendinblue) API Key", .high,
+            "\\bx(?:keysib|smtpsib)-[a-f0-9]{64}-[A-Za-z0-9]{16}\\b",
+            fix: "Revoke the Brevo API/SMTP key; it can send email as your domain and read contacts."),
+
+        SecretPattern("Resend API Key", .high,
+            "\\bre_[A-Za-z0-9]{8}_[A-Za-z0-9]{20,36}\\b",
+            fix: "Revoke the Resend API key; it can send email as your verified domain."),
+
+        SecretPattern("PostHog Project API Key", .low,
+            "\\bphc_[A-Za-z0-9]{40,}\\b",
+            fix: "A PostHog project key is client-side by design, but confirms your project; anyone can capture events into it - rotate if abused and use reverse-proxy/ingest controls."),
+
+        SecretPattern("PostHog Personal API Key", .high,
+            "\\bphx_[A-Za-z0-9]{40,}\\b",
+            fix: "Revoke the PostHog personal API key; it grants admin access to your project data and settings."),
+
+        SecretPattern("LaunchDarkly SDK/API Key", .medium,
+            "\\b(?:sdk|mob|api)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b",
+            fix: "Rotate the LaunchDarkly key; an api-* access token can administer flags, while sdk-*/mob-* keys should stay server-/app-side."),
+
+        SecretPattern("Razorpay Key ID", .medium,
+            "\\brzp_(?:live|test)_[A-Za-z0-9]{14,}\\b",
+            fix: "This Razorpay key id confirms live payment use; ensure the paired key secret is not also exposed and rotate both if so."),
+
+        SecretPattern("Flutterwave Secret Key", .critical,
+            "\\bFLWSECK(?:_TEST)?-[A-Za-z0-9]{12,}\\b",
+            fix: "Roll the Flutterwave secret key in the dashboard immediately; it can initiate and refund real payments."),
+
+        SecretPattern("Alibaba Cloud AccessKey ID", .high,
+            "\\bLTAI[A-Za-z0-9]{16,24}\\b",
+            fix: "Disable/rotate the Alibaba Cloud AccessKey in RAM; paired with its secret it controls your cloud resources."),
+
+        SecretPattern("Tencent Cloud SecretId", .high,
+            "\\bAKID[A-Za-z0-9]{28,40}\\b",
+            fix: "Rotate the Tencent Cloud SecretId/SecretKey pair in CAM; it controls your cloud account."),
+
+        SecretPattern("Akamai EdgeGrid Token", .medium,
+            "\\bakab-[A-Za-z0-9]{12,}-[A-Za-z0-9]{12,}\\b",
+            fix: "Invalidate the Akamai EdgeGrid credential in Control Center; it can call the Akamai management APIs."),
+
+        SecretPattern("JFrog Artifactory API Key", .high,
+            "\\bAKCp[A-Za-z0-9]{50,90}\\b",
+            fix: "Revoke the Artifactory API key; it can read/publish artifacts (supply-chain risk)."),
+
+        SecretPattern("Pulumi Access Token", .high,
+            "\\bpul-[a-f0-9]{40}\\b",
+            fix: "Revoke the Pulumi access token; it can read stack state (often full of secrets) and run updates."),
+
+        SecretPattern("Sourcegraph Access Token", .high,
+            "\\bsgp_(?:[A-Za-z0-9]{16,}_)?[a-f0-9]{40}\\b",
+            fix: "Revoke the Sourcegraph access token; it can read your code and search across repositories."),
+
+        SecretPattern("EasyPost API Key", .high,
+            "\\bEZ(?:AK|TK|PK)[A-Za-z0-9]{40,60}\\b",
+            fix: "Revoke the EasyPost API key; a production key can buy shipping labels billed to you."),
+
+        SecretPattern("Typeform Personal Access Token", .medium,
+            "\\btfp_[A-Za-z0-9_-]{40,}\\b",
+            fix: "Revoke the Typeform personal access token; it can read your forms and responses."),
+
+        SecretPattern("CircleCI Personal Token", .high,
+            "\\bCCIPAT_[A-Za-z0-9]{22}_[0-9a-f]{40}\\b",
+            fix: "Revoke the CircleCI personal API token; it can read/modify pipelines and project settings."),
+
+        SecretPattern("ClickUp API Token", .high,
+            "\\bpk_[0-9]{6,}_[A-Z0-9]{32}\\b",
+            fix: "Revoke the ClickUp personal API token; it can read/modify your tasks and workspaces."),
+
+        SecretPattern("Adafruit IO Key", .medium,
+            "\\baio_[A-Za-z0-9]{28}\\b",
+            fix: "Regenerate the Adafruit IO key; it can read/write your feeds and dashboards."),
+
+        SecretPattern("New Relic License Key", .high,
+            "\\b[a-f0-9]{36}NRAL\\b",
+            fix: "Rotate the New Relic license/ingest key; it can submit telemetry to your account and inflate your bill."),
+
+        SecretPattern("Netlify Personal Access Token", .high,
+            "\\bnfp_[A-Za-z0-9]{32,}\\b",
+            fix: "Revoke the Netlify PAT in User Settings > Applications; it can deploy and reconfigure your sites."),
+
+        SecretPattern("Postmark Server Token", .high,
+            "(?i)postmark[a-z0-9_ .\\-]*(?:server[_-]?)?token[\"'\\s:=]+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", capture: 1,
+            fix: "Rotate the Postmark server token; it can send email through that server as your domain."),
+
+        SecretPattern("Cloudflare Global API Key", .critical,
+            "(?i)cloudflare[a-z0-9_ .\\-]*(?:global|api)[_-]?key[\"'\\s:=]+([0-9a-f]{37})(?![0-9a-f])", capture: 1,
+            fix: "Roll the Cloudflare Global API Key immediately; it grants full account access. Prefer scoped API tokens instead."),
+
+        SecretPattern("Fastly API Token", .high,
+            "(?i)fastly[a-z0-9_ .\\-]*(?:api[_-]?)?(?:token|key)[\"'\\s:=]+([A-Za-z0-9_-]{32})(?![A-Za-z0-9_-])", capture: 1,
+            fix: "Revoke the Fastly API token; it can purge cache and modify service configuration."),
+
+        SecretPattern("Linode API Token", .high,
+            "(?i)linode[a-z0-9_ .\\-]*(?:api[_-]?)?(?:token|key)[\"'\\s:=]+([a-f0-9]{64})", capture: 1,
+            fix: "Revoke the Linode personal access token; it can control your Linodes and account."),
+
+        SecretPattern("Azure Storage SAS Token", .high,
+            "(?i)sv=20\\d\\d-\\d\\d-\\d\\d&[^\"'\\s]{0,300}?sig=([A-Za-z0-9%]{40,})", capture: 1,
+            fix: "Revoke the Azure Storage SAS (rotate the account key or stored access policy); the signature grants time-limited blob/container access."),
     ]
 
     private static let denyList: Set<String> = [

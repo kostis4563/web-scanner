@@ -28,6 +28,46 @@ func redact(_ secret: String) -> String {
     return "\(head)...\(tail)  (\(s.count) chars)"
 }
 
+func capturedBody(_ text: String, limit: Int = 200_000) -> String? {
+    let normalized = text
+        .replacingOccurrences(of: "\r\n", with: "\n")
+        .replacingOccurrences(of: "\r", with: "\n")
+    let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    if trimmed.unicodeScalars.prefix(4096).contains(where: { $0.value == 0 }) { return nil }
+
+    guard trimmed.count > limit else { return trimmed }
+    return String(trimmed.prefix(limit))
+        + "\n\n...[truncated - \(trimmed.count) characters total, use the curl command above for the rest]"
+}
+
+func recoveredEnvLines(_ text: String, limit: Int = 400) -> String? {
+    var runs: [String] = []
+    var current = ""
+    for scalar in text.unicodeScalars {
+        let isPrintable = (scalar.value >= 32 && scalar.value < 127) || scalar.value > 160
+        if isPrintable {
+            current.unicodeScalars.append(scalar)
+        } else {
+            if current.count >= 6 { runs.append(current) }
+            current = ""
+        }
+    }
+    if current.count >= 6 { runs.append(current) }
+
+    var seen = Set<String>()
+    let lines = runs
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { regexMatches("^[A-Za-z_][A-Za-z0-9_]*\\s*=", in: $0) }
+        .filter { seen.insert($0).inserted }
+        .prefix(limit)
+
+    guard !lines.isEmpty else { return nil }
+    return "Recovered from the swap buffer (`vim -r` gives the exact file):\n\n"
+        + lines.joined(separator: "\n")
+}
+
 func snippet(_ text: String, max: Int = 200) -> String {
     let collapsed = text
         .replacingOccurrences(of: "\n", with: " ")

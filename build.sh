@@ -1,15 +1,6 @@
 #!/bin/bash
-#
-# build.sh - Compile Web Scanner and package it into a macOS .app bundle.
-#
-# Usage:
-#   ./build.sh            Build a release .app bundle
-#   ./build.sh --run      Build, then launch the app
-#   ./build.sh --debug    Build a debug binary (faster compile)
-#
 set -euo pipefail
 
-# Always operate from the directory that contains this script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -60,7 +51,6 @@ if [[ -f "Resources/AppIcon.icns" ]]; then
 fi
 
 echo "==> Code signing (ad-hoc)"
-# Ad-hoc signing lets the app run locally without a Developer ID.
 codesign --force --deep --sign - "$DISPLAY_APP" >/dev/null 2>&1 || \
 	echo "   (ad-hoc signing skipped/failed - app will still run)"
 

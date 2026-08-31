@@ -55,6 +55,10 @@ enum Wordlists {
         "session/new", "sessions/new", "sign-in", "server-status", ".htpasswd", ".htaccess",
         "info.php", "phpinfo.php", "test.php", "healthz", "readyz", "livez",
         "version", "debug/pprof/", "debug/vars", "api/v1/namespaces", ".git/config", ".env",
+        "grafana/login", "prometheus/graph", "n8n/", "budibase/", "appsmith/", "directus/",
+        "pocketbase/_/", "supabase/", "hasura/console", "temporal/", "flower/", "bull-board/",
+        "rq/", "sidekiq/", "mailhog/", "maildev/", "swagger-resources", "q/dev-ui",
+        "h2-console/", "wp-admin/setup-config.php", "flowise/", "langflow/", "mlflow/", "dozzle/",
     ]
 
     static let extraFiles: [String] = [
@@ -113,6 +117,10 @@ enum Wordlists {
         "parameters.yml", "application.properties", "application.yml", "application.yaml", "app/etc/env.php", "app/etc/local.xml",
         "local.xml", "config.bak", "config.yml.bak", "database.yml", ".maintenance", "capfile",
         "deploy.rb",
+        "sitemap.xml.gz", "next.config.mjs", "astro.config.mjs", "svelte.config.js", "turbo.json", "nx.json",
+        "pnpm-workspace.yaml", "renovate.json", ".releaserc", "sentry.properties", ".mcp.json", "mcp.json",
+        ".cursorrules", ".aider.conf.yml", "firebase-debug.log", "vercel.json", "netlify.toml", "wrangler.toml",
+        "fly.toml", "railway.json", "render.yaml", "supabase/config.toml", ".dev.vars", "drizzle.config.ts", "wrangler.jsonc",
     ]
 
     static let envFileNames: [String] = [
@@ -277,9 +285,11 @@ enum Wordlists {
             category: "Information Disclosure",
             location: response.finalURL.absoluteString,
             detail: "A request to /\(path) returned readable content (HTTP \(response.status)). Review whether it should be public.",
-            evidence: "URL: \(response.finalURL.absoluteString)\nHTTP \(response.status), \(response.body.count) bytes\nPreview: \(snippet(response.text, max: 140))",
+            evidence: "URL: \(response.finalURL.absoluteString)\nHTTP \(response.status), \(response.body.count) bytes",
             exploit: "Config, log, and backup files left in the web root frequently leak internal paths, versions, or credentials.",
             remediation: "Remove the file from the web root if it is not meant to be public, or deny access to it at the web server.",
-            reference: "CWE-200: Exposure of Sensitive Information")
+            reference: "CWE-200: Exposure of Sensitive Information",
+            reproduction: "curl -s \"\(response.finalURL.absoluteString)\"",
+            capturedContent: capturedBody(response.text))
     }
 }

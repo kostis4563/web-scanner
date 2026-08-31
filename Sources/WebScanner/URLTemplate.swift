@@ -1,39 +1,19 @@
 import Foundation
 
-/// Expands a URL template containing wildcards into concrete URLs — the Swift
-/// port of the Python `scanurls.py` generator.
-///
-/// Supported wildcards:
-///   * `?`          one character from the domain alphabet (a-z 0-9 - _)
-///   * `*`          grow: 1…N such characters, bounded by `maxLength`
-///   * `[a-z]`      one character from a range/set (e.g. `[a-z0-9]`)
-///   * `[a-z]{1,3}` the set repeated 1–3 times (all strings of that length)
-///   * `(a,b,c)`    one alternative from the list
-///   * `(a,b){1,2}` the alternatives repeated 1–2 times
-///   * `[...]?` / `(...)?`  the set/alternatives, or nothing (optional)
-///   * `$`          each word from the supplied dictionary
 enum URLTemplate {
 
-    /// Domain-name alphabet used for `?` and `*` (matches the Python `chrStr`).
     static let domainAlphabet = Array("abcdefghijklmnopqrstuvwxyz0123456789-_").map(String.init)
 
-    /// True if the string uses any template wildcard.
     static func isTemplate(_ s: String) -> Bool {
         s.contains(where: { "?*[](){}$".contains($0) })
     }
 
-    /// Expand the template into concrete strings, capped at `limit`.
     static func expand(_ template: String, dictionary: [String] = [],
                        maxLength: Int = 44, limit: Int = 5000) -> [String] {
         let segments = parse(template, dictionary: dictionary, maxLength: maxLength, cap: limit)
         return product(of: segments, limit: limit)
     }
 
-    // MARK: - Parsing
-
-    /// A template becomes an ordered list of "segments"; each segment is the set
-    /// of strings that may appear at that position. The final URLs are the
-    /// cartesian product of the segments.
     private static func parse(_ template: String, dictionary: [String],
                               maxLength: Int, cap: Int) -> [[String]] {
         var segments: [[String]] = []
@@ -45,7 +25,6 @@ enum URLTemplate {
             if !literal.isEmpty { segments.append([literal]); literal = "" }
         }
 
-        // Length of the non-`*` part, used to bound `*` growth.
         let baseLength = chars.filter { $0 != "*" }.count
 
         while i < chars.count {
@@ -132,7 +111,6 @@ enum URLTemplate {
         return dedupe(set, cap: cap)
     }
 
-    /// Parse the inside of `[...]`: character ranges (`a-z`) and literal chars.
     private static func parseCharset(_ inner: String) -> [String] {
         let forbidden = Set("?[](){}!*$")
         let a = Array(inner)
@@ -161,7 +139,6 @@ enum URLTemplate {
         return out
     }
 
-    /// All concatenations of `min…max` elements drawn from `base`.
     private static func repeated(base: [String], min lo: Int, max hi: Int, cap: Int) -> [String] {
         guard !base.isEmpty, hi >= 1, lo <= hi else { return lo <= 0 ? [""] : [] }
         var out: [String] = []
@@ -181,8 +158,6 @@ enum URLTemplate {
         }
         return Array(out.prefix(cap))
     }
-
-    // MARK: - Cartesian product
 
     private static func product(of segments: [[String]], limit: Int) -> [String] {
         guard !segments.isEmpty else { return [] }

@@ -1,7 +1,5 @@
 import Foundation
 
-/// Receives live results from a content-discovery run. Implemented by the
-/// view model (on the main actor) so the UI updates as hits arrive.
 @MainActor
 protocol DiscoveryReporter: AnyObject {
     func discoveryFinding(_ f: Finding)
@@ -10,9 +8,6 @@ protocol DiscoveryReporter: AnyObject {
     func discoveryLog(_ s: String)
 }
 
-/// Wordlist-driven directory & file brute-forcer — the Swift port of the
-/// Python `scaner.py`. Concurrent, soft-404 aware, with optional directory
-/// discovery (`-s`), recursion (`-r`), and extension fuzzing (`-X`).
 final class DirBruteForcer {
 
     struct Config {
@@ -33,8 +28,8 @@ final class DirBruteForcer {
     private let cfg: Config
     private weak var reporter: DiscoveryReporter?
 
-    private var sentURLs = Set<String>()      // de-dupe discovered URLs
-    private var knownDirs: [String] = []       // dir queue (relative, trailing slash, root = "")
+    private var sentURLs = Set<String>()
+    private var knownDirs: [String] = []
     private var knownDirSet = Set<String>()
     private var probedDefaultDirs = Set<String>()
     private var requestCount = 0
@@ -49,8 +44,6 @@ final class DirBruteForcer {
         self.reporter = reporter
     }
 
-    // MARK: - Entry point
-
     func run(words: [String], soft: Soft404Baseline) async {
         self.soft = soft
         let words = words.filter { cfg.filters.passesPath($0) }
@@ -59,7 +52,6 @@ final class DirBruteForcer {
             return
         }
 
-        // Seed the directory queue.
         addDir("")
         if cfg.scanDirectories {
             await reporter?.discoveryProgress(done: 0, total: 1, status: "Discovering directories…")
@@ -70,8 +62,6 @@ final class DirBruteForcer {
         let perDir = words.count * (cfg.extensions.count + 1)
         total = min(cfg.maxRequests, max(1, knownDirs.count * perDir))
 
-        // Walk the directory queue. `knownDirs` may grow while we iterate when
-        // recursion is on, so index over a growing array like the Python does.
         var dirIndex = 0
         while dirIndex < knownDirs.count, requestCount < cfg.maxRequests {
             let dir = knownDirs[dirIndex]
@@ -83,14 +73,12 @@ final class DirBruteForcer {
             }
             if cfg.probeDefaultFiles { await probeDefaults(inDir: dir) }
             await scanWordlist(words, inDir: dir)
-            // Recompute the estimate as the queue grows.
+
             total = min(cfg.maxRequests, max(total, knownDirs.count * perDir))
         }
 
         await reporter?.discoveryProgress(done: total, total: total, status: "Content discovery complete")
     }
-
-    // MARK: - Wordlist sweep
 
     private func scanWordlist(_ words: [String], inDir dir: String) async {
         var newDirs: [String] = []
@@ -129,8 +117,6 @@ final class DirBruteForcer {
         }
     }
 
-    /// Build the candidate relative paths for one word: the word itself plus any
-    /// extension variations (`-X`).
     private func candidatePaths(dir: String, word: String) -> [String] {
         var out = ["\(dir)\(word)"]
         if !cfg.extensions.isEmpty, !word.hasSuffix("/") {
@@ -138,8 +124,6 @@ final class DirBruteForcer {
         }
         return out
     }
-
-    // MARK: - Default files & directories
 
     private func probeDefaults(inDir dir: String) async {
         guard probedDefaultDirs.insert(dir).inserted else { return }
@@ -158,23 +142,18 @@ final class DirBruteForcer {
         }
     }
 
-    // MARK: - Classification (port of superProc's per-response logic)
-
-    /// Decide whether a response is a real hit and, if so, report it.
-    /// Returns the DiscoveredURL when reported (so the caller can recurse).
     @discardableResult
     private func classifyAndReport(path: String, resp: HTTPResponse) async -> DiscoveredURL? {
         let code = resp.status
         guard cfg.filters.passesCode(code) else { return nil }
 
-        // Directories legitimately answer 301/403; everything else must have a body.
         let isDirPath = path.hasSuffix("/")
         if code == 404 { return nil }
         if code >= 500 { return nil }
         if !isDirPath, resp.body.isEmpty { return nil }
 
         let text = resp.text
-        // Drop soft-404s and generic "not found" pages.
+
         if soft.looksLikeThis(resp) || looksLikeNotFound(text) { return nil }
 
         let title = HTMLHelpers.title(from: text)
@@ -193,7 +172,7 @@ final class DirBruteForcer {
         } else if isDirPath, code == 200 || code == 301 || code == 403 {
             kind = .directory
         } else if !isHTML {
-            // A concrete file. Flag a Content-Type ↔ extension mismatch.
+
             if MimeTypes.mismatch(path: path, contentType: resp.contentType) {
                 kind = .mismatch
                 notable = true
@@ -204,7 +183,6 @@ final class DirBruteForcer {
             kind = .page
         }
 
-        // Secret-scan any non-HTML body, and surface sensitive filenames.
         if cfg.runSecretScan, !isHTML, code == 200 || code == 206 {
             let hits = SecretScanner.scan(text, source: resp.finalURL.absoluteString)
             if !hits.isEmpty {
@@ -239,14 +217,11 @@ final class DirBruteForcer {
         return d
     }
 
-    // MARK: - Directory discovery (port of scanDirs / dirScan)
-
     private func discoverDirectories() async -> [String] {
         var dirs = Set<String>()
         guard let home = URL(string: "\(cfg.origin)/"), let r = await http.fetch(home) else { return [] }
         for d in directoriesFrom(html: r.text, base: r.finalURL) { dirs.insert(d) }
 
-        // robots.txt and sitemap.xml frequently list real directories.
         if let u = URL(string: "\(cfg.origin)/robots.txt"), let rr = await http.fetch(u), rr.status == 200 {
             for p in ExtraChecks.robotsDisallowPaths(rr.text) {
                 let dir = directoryComponent(of: p)
@@ -261,7 +236,6 @@ final class DirBruteForcer {
             }
         }
 
-        // Add every parent directory too, so we scan the whole tree.
         var expanded = Set<String>()
         for d in dirs {
             expanded.insert(d)
@@ -270,7 +244,6 @@ final class DirBruteForcer {
         return Array(expanded).sorted()
     }
 
-    /// Extract directory prefixes from an HTML document's links.
     private func directoriesFrom(html: String, base: URL) -> [String] {
         var out = Set<String>()
         for link in ExtraChecks.extractLinks(html: html, base: base, sameHost: cfg.host) {
@@ -280,14 +253,10 @@ final class DirBruteForcer {
         return Array(out)
     }
 
-    // MARK: - Path helpers
-
-    /// Normalize a URL path into a relative directory string:
-    /// leading slash removed, always trailing slash, root = "".
     private func directoryComponent(of path: String) -> String {
         var p = path
         if let q = p.firstIndex(of: "?") { p = String(p[..<q]) }
-        // If it looks like a file (has an extension in the last segment), drop the file.
+
         if !p.hasSuffix("/") {
             let last = p.split(separator: "/").last.map(String.init) ?? ""
             if last.contains(".") {
@@ -314,8 +283,6 @@ final class DirBruteForcer {
         guard knownDirs.count < cfg.maxDirs || dir.isEmpty else { return }
         if knownDirSet.insert(dir).inserted { knownDirs.append(dir) }
     }
-
-    // MARK: - Heuristics
 
     private func looksLikeNotFound(_ text: String) -> Bool {
         let l = text.prefix(4000).lowercased()

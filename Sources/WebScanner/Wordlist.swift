@@ -1,15 +1,7 @@
 import Foundation
 
-/// Loads and normalizes wordlists for content discovery.
-///
-/// Mirrors the Python scanner's `-d` option, which accepts a comma-separated
-/// list of local files or URLs (and falls back to a bundled default dictionary).
-/// Here the user can also paste words directly.
 enum Wordlist {
 
-    /// Parse raw wordlist text into a clean, de-duplicated list of entries.
-    /// Blank lines and `#` comments are dropped; a leading `/` is trimmed so
-    /// entries join cleanly onto a directory prefix.
     static func parse(_ raw: String) -> [String] {
         var seen = Set<String>()
         var out: [String] = []
@@ -23,13 +15,6 @@ enum Wordlist {
         return out
     }
 
-    /// Resolve a discovery "source" specification into a concrete word list.
-    ///
-    /// `spec` is a comma-separated list; each item is one of:
-    ///   * an `http(s)://` URL (downloaded)
-    ///   * a local file path (read from disk)
-    /// Anything that isn't a readable file or URL is treated as an inline word.
-    /// An empty spec yields the built-in default list.
     static func load(spec: String, http: HTTPClient) async -> [String] {
         let trimmed = spec.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return defaultPaths }
@@ -58,15 +43,12 @@ enum Wordlist {
         return words.isEmpty ? defaultPaths : dedupe(words)
     }
 
-    /// Read a wordlist directly from a local file (used by the file picker).
     static func loadFile(_ path: String) -> [String]? {
         let expanded = (path as NSString).expandingTildeInPath
         guard let contents = try? String(contentsOfFile: expanded, encoding: .utf8) else { return nil }
         return parse(contents)
     }
 
-    /// Split a comma-separated extension list ("php,bak,.old") into normalized
-    /// suffixes, each starting with a dot. Mirrors the Python `-X` option.
     static func parseExtensions(_ raw: String) -> [String] {
         var seen = Set<String>()
         var out: [String] = []
@@ -86,12 +68,8 @@ enum Wordlist {
         return out
     }
 
-    /// A compact, high-signal default content-discovery list used when the user
-    /// supplies no wordlist. Covers common directories, admin panels, config,
-    /// backup, VCS, and secret files. Point the file field at a larger list
-    /// (e.g. SecLists) for exhaustive scans.
     static let defaultPaths: [String] = [
-        // Directories
+
         "admin", "administrator", "login", "wp-admin", "wp-login.php", "dashboard",
         "panel", "cpanel", "webmail", "portal", "manage", "manager", "console",
         "backend", "cms", "api", "api/v1", "api/v2", "graphql", "rest", "app",
@@ -108,7 +86,7 @@ enum Wordlist {
         "user", "users", "account", "accounts", "profile", "register", "signup",
         "signin", "logout", "auth", "oauth", "sso", "reset", "forgot",
         "search", "cart", "checkout", "order", "orders", "payment", "billing",
-        // Files
+
         ".env", ".env.local", ".env.production", ".env.backup", ".env.example",
         ".git/config", ".git/HEAD", ".gitignore", ".svn/entries", ".hg/",
         ".htaccess", ".htpasswd", "web.config", "robots.txt", "sitemap.xml",

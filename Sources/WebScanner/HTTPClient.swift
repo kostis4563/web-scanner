@@ -19,8 +19,6 @@ struct HTTPResponse {
     var contentType: String { header("content-type") ?? "" }
 }
 
-/// Spaces out request *starts* by a fixed interval, giving a real global
-/// rate limit (the Python scanner's `-z` delay, but applied across all workers).
 actor RequestPacer {
     private var nextEarliest: Date = .distantPast
 
@@ -41,8 +39,6 @@ final class HTTPClient: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
 
     let userAgent = "WebScanner/1.0 (+authorized-security-assessment)"
 
-    /// User-supplied options (cookie, basic auth, custom header, UA, delay)
-    /// applied to every request. Set once before a scan starts.
     var options = RequestOptions.none
 
     private let pacer = RequestPacer()
@@ -101,8 +97,7 @@ final class HTTPClient: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
                followRedirects: Bool = true) async -> HTTPResponse? {
         var req = URLRequest(url: url)
         req.httpMethod = method
-        // Global user options first, then per-call headers so probe-specific
-        // headers (Origin, X-Forwarded-Host, …) always win.
+
         for (k, v) in options.resolvedHeaders() { req.setValue(v, forHTTPHeaderField: k) }
         for (k, v) in extraHeaders { req.setValue(v, forHTTPHeaderField: k) }
         if let body { req.httpBody = body }
@@ -141,6 +136,87 @@ final class HTTPClient: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
         }
     }
 
+    private func timingConfig() -> URLSessionConfiguration {
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForRequest = 15
+        cfg.timeoutIntervalForResource = 25
+        cfg.httpAdditionalHeaders = [
+            "User-Agent": userAgent,
+            "Accept": "*/*",
+        ]
+        cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
+        cfg.httpShouldSetCookies = false
+        cfg.httpCookieAcceptPolicy = .never
+        return cfg
+    }
+
+    private func timedFetch(_ url: URL, session: URLSession) async -> (HTTPResponse, RequestTiming)? {
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        for (k, v) in options.resolvedHeaders() { req.setValue(v, forHTTPHeaderField: k) }
+
+        await pacer.wait(intervalMs: options.delayMs)
+
+        let collector = MetricsCollector()
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            let (data, resp) = try await session.data(for: req, delegate: collector)
+            let wallMs = (clock.now - start).milliseconds
+            guard let http = resp as? HTTPURLResponse else { return nil }
+
+            var headers: [String: String] = [:]
+            for (k, v) in http.allHeaderFields {
+                if let ks = k as? String, let vs = v as? String {
+                    headers[ks.lowercased()] = vs
+                }
+            }
+            let response = HTTPResponse(
+                requestedURL: url,
+                finalURL: http.url ?? url,
+                status: http.statusCode,
+                headers: headers,
+                setCookieRaw: http.value(forHTTPHeaderField: "Set-Cookie"),
+                cookies: [],
+                body: data)
+
+            let timing = RequestTiming.from(metrics: collector.metrics,
+                                            wallMs: wallMs, decodedBytes: data.count)
+            return (response, timing)
+        } catch {
+            return nil
+        }
+    }
+
+    func timedFetches(_ url: URL, count: Int) async -> [(response: HTTPResponse, timing: RequestTiming)] {
+        let session = URLSession(configuration: timingConfig())
+        defer { session.finishTasksAndInvalidate() }
+        var out: [(response: HTTPResponse, timing: RequestTiming)] = []
+        for _ in 0..<max(1, count) {
+            if let s = await timedFetch(url, session: session) { out.append(s) }
+        }
+        return out
+    }
+
+    func timedAssetFetches(_ urls: [URL], concurrency: Int = 6) async -> [(url: URL, response: HTTPResponse, timing: RequestTiming)] {
+        guard !urls.isEmpty else { return [] }
+        let session = URLSession(configuration: timingConfig())
+        defer { session.finishTasksAndInvalidate() }
+        var out: [(url: URL, response: HTTPResponse, timing: RequestTiming)] = []
+        for batch in urls.chunked(into: max(1, concurrency)) {
+            await withTaskGroup(of: (URL, HTTPResponse, RequestTiming)?.self) { group in
+                for u in batch {
+                    group.addTask { [weak self] in
+                        guard let self, let (r, t) = await self.timedFetch(u, session: session) else { return nil }
+                        return (u, r, t)
+                    }
+                }
+                for await res in group { if let res { out.append((res.0, res.1, res.2)) } }
+            }
+        }
+        return out
+    }
+
     func tlsValid(host: String) async -> Bool? {
         guard let url = URL(string: "https://\(host)/") else { return nil }
         var req = URLRequest(url: url)
@@ -162,5 +238,39 @@ final class HTTPClient: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
         } catch {
             return nil
         }
+    }
+}
+
+final class MetricsCollector: NSObject, URLSessionTaskDelegate {
+    private let lock = NSLock()
+    private var _metrics: URLSessionTaskMetrics?
+
+    var metrics: URLSessionTaskMetrics? {
+        lock.lock(); defer { lock.unlock() }
+        return _metrics
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    didFinishCollecting metrics: URLSessionTaskMetrics) {
+        lock.lock(); _metrics = metrics; lock.unlock()
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+           let trust = challenge.protectionSpace.serverTrust {
+            completionHandler(.useCredential, URLCredential(trust: trust))
+        } else {
+            completionHandler(.performDefaultHandling, nil)
+        }
+    }
+}
+
+extension Duration {
+
+    var milliseconds: Double {
+        let c = components
+        return Double(c.seconds) * 1000 + Double(c.attoseconds) / 1_000_000_000_000_000
     }
 }
