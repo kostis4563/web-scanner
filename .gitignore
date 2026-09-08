@@ -1,11 +1,8 @@
-# macOS
 .DS_Store
 
-# Swift Package Manager
 .build/
 .swiftpm/
 
-# Build outputs / distribution
 build/
 dist/
 *.app/

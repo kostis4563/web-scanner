@@ -214,8 +214,8 @@ only-codes, and not-in-title filters.
 git clone https://github.com/kostis4563/web-scanner.git
 cd web-scanner
 
-./build.sh          # produces WebScanner.app in this folder
-./build.sh --run    # build and launch
+./build.sh
+./build.sh --run
 ```
 
 Then double-click **WebScanner.app** or run `open WebScanner.app`.

@@ -2,36 +2,38 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleName</key>
-	<string>WebScanner</string>
 	<key>CFBundleDisplayName</key>
 	<string>Web Scanner</string>
+	<key>CFBundleExecutable</key>
+	<string>WebScanner</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.webscanner.app</string>
-	<key>CFBundleVersion</key>
-	<string>1.0</string>
-	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
-	<key>CFBundleExecutable</key>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
 	<string>WebScanner</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>13.0</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>For authorized security testing only.</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>For authorized security testing only.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>

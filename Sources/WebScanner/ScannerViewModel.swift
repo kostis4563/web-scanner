@@ -127,14 +127,14 @@ final class ScannerViewModel: ObservableObject {
         )
     }
 
-    private var portScanTask: Task<Void, Never>?
+    private var activeScanTask: Task<Void, Never>?
 
-    var canStop: Bool { isScanning && mode == .portScan }
+    var canStop: Bool { isScanning && activeScanTask != nil }
 
     func stopScan() {
-        guard let task = portScanTask else { return }
-        log("■ Stopping - finishing the probes already in flight...")
-        setStatus("Stopping...")
+        guard let task = activeScanTask else { return }
+        log("■ Cancelling scan - finishing work already in flight...")
+        setStatus("Cancelling scan...")
         task.cancel()
     }
 
@@ -171,39 +171,39 @@ final class ScannerViewModel: ObservableObject {
         case .fullAudit:
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-            Task { await runFullAudit(host: host, base: base!) }
+            activeScanTask = Task { await runFullAudit(host: host, base: base!) }
         case .siteScan:
             scannedURL = base
-            Task { await runScan(base!) }
+            activeScanTask = Task { await runScan(base!) }
         case .contentDiscovery:
             scannedURL = base
-            Task { await runContentDiscoveryScan(base!) }
+            activeScanTask = Task { await runContentDiscoveryScan(base!) }
         case .urlMask:
-            Task { await runURLMask(target.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            activeScanTask = Task { await runURLMask(target.trimmingCharacters(in: .whitespacesAndNewlines)) }
         case .portScan:
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-            portScanTask = Task { await runPortScan(host: host, base: base!) }
+            activeScanTask = Task { await runPortScan(host: host, base: base!) }
         case .database:
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-            Task { await runDatabaseScan(host: host, base: base!) }
+            activeScanTask = Task { await runDatabaseScan(host: host, base: base!) }
         case .hostScan:
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-            Task { await runHostScan(host: host, base: base!) }
+            activeScanTask = Task { await runHostScan(host: host, base: base!) }
         case .info:
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-            Task { await runInfoScan(host: host, base: base!) }
+            activeScanTask = Task { await runInfoScan(host: host, base: base!) }
         case .performance:
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-            Task { await runPerformanceScan(host: host, base: base!) }
+            activeScanTask = Task { await runPerformanceScan(host: host, base: base!) }
         case .userView:
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-            Task { await runUserViewScan(host: host, base: base!) }
+            activeScanTask = Task { await runUserViewScan(host: host, base: base!) }
         }
     }
 
@@ -1299,17 +1299,23 @@ final class ScannerViewModel: ObservableObject {
         ]
 
         for (i, phase) in phases.enumerated() {
+            guard !Task.isCancelled else { break }
             progressWindow = phase.band
             progress = 0
             log("── Phase \(i + 1)/\(phases.count): \(phase.name) ──")
             setStatus("Full Audit \(i + 1)/\(phases.count) · \(phase.name)…")
             await phase.run()
+            guard !Task.isCancelled else { break }
             progress = 1
         }
 
         progressWindow = nil
         isOrchestrating = false
         intensity = previousIntensity
+        guard !Task.isCancelled else {
+            finishCancelledScan()
+            return
+        }
         progress = 1.0
         finishScan()
     }
@@ -2906,11 +2912,14 @@ final class ScannerViewModel: ObservableObject {
     private func log(_ s: String) { logLines.append(s) }
 
     private func finishScan() {
-
+        if Task.isCancelled {
+            finishCancelledScan()
+            return
+        }
         guard !isOrchestrating else { return }
         finishedAt = Date()
         isScanning = false
-        portScanTask = nil
+        activeScanTask = nil
         let disc = discovered.isEmpty ? "" : " · \(discovered.count) URLs"
         let openCount = openPorts.filter { $0.state == .open }.count
         let portsPart = openCount == 0 ? "" : " · \(openCount) open ports"
@@ -2918,6 +2927,18 @@ final class ScannerViewModel: ObservableObject {
         let c = counts
         log("■ Scan complete: \(c[.critical] ?? 0) critical, \(c[.high] ?? 0) high, \(c[.medium] ?? 0) medium, \(c[.low] ?? 0) low, \(c[.info] ?? 0) info."
             + (discovered.isEmpty ? "" : " Discovered \(discovered.count) reachable URL(s)."))
+    }
+
+    private func finishCancelledScan() {
+        guard isScanning else { return }
+        finishedAt = Date()
+        isScanning = false
+        activeScanTask = nil
+        progressWindow = nil
+        isOrchestrating = false
+        progress = 0
+        statusText = "Scan cancelled"
+        log("■ Scan cancelled.")
     }
 
     var discoveredText: String {
