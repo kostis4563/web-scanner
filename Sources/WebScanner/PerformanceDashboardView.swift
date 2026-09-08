@@ -7,11 +7,16 @@ struct PerformanceDashboard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             scoreHeader
+            if !report.opportunities.isEmpty { Divider(); biggestWinsCard }
             if hasTiming { Divider(); timingCard }
+            if report.ttfb.all.count >= 2 { Divider(); ttfbCard }
             Divider()
             transportTiles
+            if !waterfall.isEmpty { Divider(); waterfallCard }
             Divider()
             payloadCard
+            if report.origins.count > 1 { Divider(); originsCard }
+            if !report.estimates.isEmpty { Divider(); networkCard }
         }
         .padding(14)
         .background(Color(NSColor.controlBackgroundColor))
@@ -52,6 +57,65 @@ struct PerformanceDashboard: View {
                     .lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 0)
+        }
+    }
+
+    private var biggestWinsCard: some View {
+        let top = Array(report.opportunities.prefix(5))
+        let maxSaved = max(top.map { $0.savedMs }.max() ?? 1, 1)
+        let totalMs = report.opportunities.reduce(0) { $0 + $1.savedMs }
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("BIGGEST WINS").font(.caption2.bold()).foregroundStyle(.secondary)
+                Spacer()
+                Text("~\(PerformanceChecks.seconds(totalMs)) recoverable")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.orange)
+            }
+            Text("Ranked by time saved on a Slow-4G connection. Full steps are in the findings below.")
+                .font(.system(size: 10)).foregroundStyle(.tertiary)
+
+            ForEach(Array(top.enumerated()), id: \.element.id) { idx, o in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 7) {
+                        Text("\(idx + 1)")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .frame(width: 15, height: 15)
+                            .background(severityColor(o.severity).opacity(0.18))
+                            .foregroundStyle(severityColor(o.severity))
+                            .clipShape(Circle())
+                        Text(o.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1).truncationMode(.tail)
+                        Spacer(minLength: 6)
+                        Text(o.impactLabel)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(severityColor(o.severity))
+                        if o.savedBytes > 0 {
+                            Text("· \(PerformanceChecks.kb(o.savedBytes))")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.secondary.opacity(0.10))
+                            Capsule()
+                                .fill(severityColor(o.severity).opacity(0.55))
+                                .frame(width: max(3, geo.size.width * CGFloat(o.savedMs / maxSaved)))
+                        }
+                    }
+                    .frame(height: 5)
+                    if let first = o.steps.first {
+                        Text(first)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .padding(.leading, 22)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
         }
     }
 
@@ -99,10 +163,68 @@ struct PerformanceDashboard: View {
                     }
                 }
             }
+            if let rtt = report.networkRTTMs, let think = report.serverProcessingMs {
+                Text("Split: ~\(PerformanceChecks.ms(rtt)) network round trip + ~\(PerformanceChecks.ms(think)) server processing")
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
             if let warm = report.ttfbWarmMs, let cold = report.ttfbColdMs, warm < cold {
                 Text("Warm connection reuse: TTFB \(PerformanceChecks.ms(cold)) → \(PerformanceChecks.ms(warm))")
                     .font(.system(size: 10)).foregroundStyle(.tertiary)
             }
+        }
+    }
+
+    private var ttfbCard: some View {
+        let samples = report.ttfb.all
+        let maxV = max(samples.max() ?? 1, 1)
+        let unstable = (report.ttfb.jitterRatio ?? 1) > 2 && (report.ttfb.jitterMs ?? 0) > 250
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text("RESPONSE TIME — \(samples.count) SAMPLES").font(.caption2.bold()).foregroundStyle(.secondary)
+                Spacer()
+                if unstable {
+                    Text("inconsistent")
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 6).padding(.vertical, 1.5)
+                        .background(Color.orange.opacity(0.18))
+                        .foregroundStyle(.orange)
+                        .clipShape(Capsule())
+                }
+            }
+            GeometryReader { geo in
+                let gap: CGFloat = 3
+                let w = max(4, (geo.size.width - gap * CGFloat(max(0, samples.count - 1))) / CGFloat(max(1, samples.count)))
+                HStack(alignment: .bottom, spacing: gap) {
+                    ForEach(Array(samples.enumerated()), id: \.offset) { i, v in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(i < report.ttfb.cold.count
+                                  ? Color(red: 0.55, green: 0.35, blue: 0.85).opacity(0.75)
+                                  : Color(red: 0.90, green: 0.55, blue: 0.11).opacity(0.75))
+                            .frame(width: w, height: max(3, 34 * CGFloat(v / maxV)))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: 34)
+
+            FlowRow(spacing: 12, lineSpacing: 4) {
+                statChip("best", PerformanceChecks.ms(report.ttfb.best), .green)
+                statChip("median", PerformanceChecks.ms(report.ttfb.median), .secondary)
+                statChip("p95", PerformanceChecks.ms(report.ttfb.p95), unstable ? .orange : .secondary)
+                statChip("worst", PerformanceChecks.ms(report.ttfb.worst), unstable ? .orange : .secondary)
+                if let j = report.ttfb.jitterMs {
+                    statChip("spread", PerformanceChecks.ms(j), unstable ? .orange : .secondary)
+                }
+            }
+            Text("Purple = cold connection · orange = reused connection")
+                .font(.system(size: 9)).foregroundStyle(.tertiary)
+        }
+    }
+
+    private func statChip(_ label: String, _ value: String, _ color: Color) -> some View {
+        HStack(spacing: 4) {
+            Text(label).font(.system(size: 9)).foregroundStyle(.tertiary)
+            Text(value).font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(color)
         }
     }
 
@@ -116,8 +238,24 @@ struct PerformanceDashboard: View {
             tile("Compression", report.htmlCompressed == true ? "On" : (report.htmlCompressed == false ? "Off" : "—"),
                  good: report.htmlCompressed == true, bad: report.htmlCompressed == false)
             tile("CDN / Edge", report.cdn ?? "None", good: report.cdn != nil, neutral: report.cdn == nil)
+            tile("Edge cache", cacheLabel, good: cacheLabel.uppercased().contains("HIT"),
+                 bad: cacheLabel.uppercased().contains("MISS"), neutral: cacheLabel == "—")
             tile("Requests", "\(report.requestCount)", good: report.requestCount <= 30, bad: report.requestCount > 80)
+            tile("Chain depth", "\(report.criticalChainDepth)",
+                 good: report.criticalChainDepth <= 2, bad: report.criticalChainDepth >= 4)
+            tile("JS main-thread", PerformanceChecks.ms(report.jsExecMs),
+                 good: report.jsExecMs < 300, bad: report.jsExecMs > 1000)
+            tile("Third-party", report.thirdPartyRequests == 0 ? "None" : "\(report.thirdPartyRequests)× \(PerformanceChecks.kb(report.thirdPartyBytes))",
+                 good: report.thirdPartyRequests == 0, bad: report.thirdPartyBytes > 800_000,
+                 neutral: report.thirdPartyRequests > 0 && report.thirdPartyBytes <= 800_000)
+            tile("Recoverable", report.wastedBytes > 0 ? PerformanceChecks.kb(report.wastedBytes) : "—",
+                 bad: report.wastedBytes > 200_000, neutral: report.wastedBytes == 0)
         }
+    }
+
+    private var cacheLabel: String {
+        guard let s = report.cacheStatus, !s.isEmpty else { return "—" }
+        return s.count > 14 ? String(s.prefix(14)) : s
     }
 
     private func tile(_ label: String, _ value: String, good: Bool = false, bad: Bool = false, neutral: Bool = false) -> some View {
@@ -134,6 +272,84 @@ struct PerformanceDashboard: View {
         .background((neutral ? Color.secondary : color).opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: 7))
     }
+
+    private var waterfall: [ResourceStat] {
+        Array(report.slowest.filter { ($0.ms ?? 0) > 0 }.prefix(8))
+    }
+
+    private var waterfallCard: some View {
+        let rows = waterfall
+        let maxMs = max(rows.map { $0.ms ?? 0 }.max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text("SLOWEST REQUESTS").font(.caption2.bold()).foregroundStyle(.secondary)
+                Spacer()
+                FlowRow(spacing: 9, lineSpacing: 3) {
+                    legendDot("connect", connectColor)
+                    legendDot("wait", waitColor)
+                    legendDot("download", downloadColor)
+                }
+            }
+            ForEach(rows) { r in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Image(systemName: r.type.symbol)
+                            .font(.system(size: 9)).foregroundStyle(color(for: r.type)).frame(width: 12)
+                        Text(r.name)
+                            .font(.system(size: 10, design: .monospaced))
+                            .lineLimit(1).truncationMode(.middle)
+                        if r.renderBlocking { badge("blocking", .orange) }
+                        if r.thirdParty { badge("3rd-party", .purple) }
+                        if r.depth >= 3 { badge("late", .blue) }
+                        if r.status >= 400 { badge("HTTP \(r.status)", .red) }
+                        Spacer(minLength: 6)
+                        Text(PerformanceChecks.ms(r.ms))
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    GeometryReader { geo in
+                        let scale = geo.size.width / CGFloat(maxMs)
+                        HStack(spacing: 0) {
+                            segment(r.setupMs, scale: scale, color: connectColor)
+                            segment(r.ttfbMs, scale: scale, color: waitColor)
+                            segment(r.downloadMs, scale: scale, color: downloadColor)
+                            if r.setupMs == nil && r.ttfbMs == nil && r.downloadMs == nil {
+                                segment(r.ms, scale: scale, color: waitColor.opacity(0.5))
+                            }
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+                    .frame(height: 8)
+                }
+            }
+        }
+    }
+
+    private func segment(_ value: Double?, scale: CGFloat, color: Color) -> some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: max(0, CGFloat(value ?? 0) * scale))
+    }
+
+    private func legendDot(_ label: String, _ c: Color) -> some View {
+        HStack(spacing: 3) {
+            Circle().fill(c).frame(width: 6, height: 6)
+            Text(label).font(.system(size: 9)).foregroundStyle(.tertiary)
+        }
+    }
+
+    private func badge(_ text: String, _ c: Color) -> some View {
+        Text(text)
+            .font(.system(size: 8, weight: .bold))
+            .padding(.horizontal, 4).padding(.vertical, 1)
+            .background(c.opacity(0.16))
+            .foregroundStyle(c)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+    }
+
+    private var connectColor: Color { Color(red: 0.55, green: 0.35, blue: 0.85) }
+    private var waitColor: Color { Color(red: 0.90, green: 0.55, blue: 0.11) }
+    private var downloadColor: Color { Color(red: 0.24, green: 0.62, blue: 0.34) }
 
     private var payloadCard: some View {
         let total = max(report.totalWireBytes, 1)
@@ -169,6 +385,19 @@ struct PerformanceDashboard: View {
                 }
             }
 
+            if report.wastedBytes > 0 || report.repeatVisitBytes > 0 {
+                HStack(spacing: 14) {
+                    if report.wastedBytes > 0 {
+                        Text("~\(PerformanceChecks.kb(report.wastedBytes)) recoverable")
+                            .font(.system(size: 10)).foregroundStyle(.orange)
+                    }
+                    if report.repeatVisitBytes > 0 {
+                        Text("\(PerformanceChecks.kb(report.repeatVisitBytes)) re-downloaded on repeat visits")
+                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    }
+                }
+            }
+
             if report.largest.count > 1 {
                 Divider().padding(.vertical, 2)
                 Text("LARGEST RESOURCES").font(.system(size: 8.5, weight: .bold)).foregroundStyle(.secondary)
@@ -184,6 +413,93 @@ struct PerformanceDashboard: View {
                     }
                 }
             }
+        }
+    }
+
+    private var originsCard: some View {
+        let rows = Array(report.origins.prefix(6))
+        let total = max(report.totalWireBytes, 1)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("ORIGINS").font(.caption2.bold()).foregroundStyle(.secondary)
+                Spacer()
+                Text("\(report.origins.count) host(s) · \(report.origins.filter { $0.thirdParty }.count) third-party")
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            ForEach(rows) { o in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(o.thirdParty ? Color.purple.opacity(0.7) : Color.green.opacity(0.7))
+                        .frame(width: 6, height: 6)
+                    Text(o.host)
+                        .font(.system(size: 10, design: .monospaced))
+                        .lineLimit(1).truncationMode(.middle)
+                    if o.thirdParty && !o.preconnected { badge("no preconnect", .orange) }
+                    if o.blockingRequests > 0 { badge("\(o.blockingRequests) blocking", .orange) }
+                    Spacer(minLength: 6)
+                    Text("\(o.requests)×")
+                        .font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary)
+                    Text(PerformanceChecks.kb(o.wireBytes))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 62, alignment: .trailing)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.secondary.opacity(0.10))
+                            Capsule()
+                                .fill((o.thirdParty ? Color.purple : Color.green).opacity(0.45))
+                                .frame(width: max(2, geo.size.width * CGFloat(Double(o.wireBytes) / Double(total))))
+                        }
+                    }
+                    .frame(width: 54, height: 5)
+                }
+            }
+        }
+    }
+
+    private var networkCard: some View {
+        let maxLoad = max(report.estimates.map { $0.fullLoadMs }.max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("MODELLED LOAD ON REAL NETWORKS").font(.caption2.bold()).foregroundStyle(.secondary)
+                Spacer()
+                Text("estimate, not a measurement")
+                    .font(.system(size: 9)).foregroundStyle(.tertiary)
+            }
+            ForEach(report.estimates) { e in
+                HStack(spacing: 8) {
+                    Text(e.profile)
+                        .font(.system(size: 10))
+                        .frame(width: 88, alignment: .leading)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.secondary.opacity(0.10))
+                            HStack(spacing: 0) {
+                                Capsule()
+                                    .fill(waitColor.opacity(0.65))
+                                    .frame(width: max(2, geo.size.width * CGFloat(e.firstByteMs / maxLoad)))
+                                Capsule()
+                                    .fill(downloadColor.opacity(0.55))
+                                    .frame(width: max(1, geo.size.width * CGFloat(max(0, e.fullLoadMs - e.firstByteMs) / maxLoad)))
+                            }
+                        }
+                    }
+                    .frame(height: 7)
+                    Text(PerformanceChecks.seconds(e.fullLoadMs))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(e.fullLoadMs > 6000 ? .orange : .secondary)
+                        .frame(width: 52, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    private func severityColor(_ s: Severity) -> Color {
+        switch s {
+        case .critical, .high: return .red
+        case .medium:          return .orange
+        case .low:             return Color(red: 0.82, green: 0.62, blue: 0.08)
+        case .info:            return .secondary
         }
     }
 

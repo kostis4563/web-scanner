@@ -676,46 +676,105 @@ final class ScannerViewModel: ObservableObject {
     }
 
     private func runPerformanceScan(host: String, base: URL) async {
-        log("▶︎ Measuring performance of \(host)")
-        setStatus("Measuring server response time...")
+        log("▶︎ Deep performance probe of \(host)")
+        setStatus("Measuring server response time (cold connections)...")
 
-        var samples = await http.timedFetches(base, count: 4)
-        if samples.isEmpty, base.scheme == "https", let u = URL(string: "http://\(host)/") {
+        var cold = await http.timedColdFetches(base, count: 2)
+        var target = base
+        if cold.isEmpty, base.scheme == "https", let u = URL(string: "http://\(host)/") {
             log("• HTTPS request failed - retrying over HTTP.")
-            samples = await http.timedFetches(u, count: 4)
+            target = u
+            cold = await http.timedColdFetches(u, count: 2)
         }
-        guard let home = samples.first?.response else {
+        guard let home = cold.first?.response else {
             log("❌ Could not reach \(host). Scan aborted.")
             finishScan()
             return
         }
         scannedURL = home.finalURL
         log("✓ Connected - HTTP \(home.status) at \(home.finalURL.absoluteString)")
-        if let best = samples.compactMap({ $0.timing.ttfbMs }).min() {
-            let proto = samples.compactMap { $0.timing.networkProtocol }.first ?? "?"
-            log(String(format: "• TTFB best %.0f ms · %@", best, proto))
+        if let c = cold.first?.timing {
+            log("• Cold setup: DNS \(PerformanceChecks.ms(c.dnsMs)) · TCP \(PerformanceChecks.ms(c.tcpMs)) · TLS \(PerformanceChecks.ms(c.tlsMs))")
         }
-        progress = 0.45
+        progress = 0.18
+
+        setStatus("Sampling response time (warm connection)...")
+        let warm = await http.timedFetches(target, count: 5)
+        let allTTFB = (cold + warm).compactMap { $0.timing.ttfbMs }
+        if let best = allTTFB.min(), let worst = allTTFB.max() {
+            let proto = (cold + warm).compactMap { $0.timing.networkProtocol }.first ?? "?"
+            log(String(format: "• TTFB over %d samples: best %.0f ms · worst %.0f ms · %@",
+                       allTTFB.count, best, worst, proto))
+        }
+        progress = 0.32
+
+        setStatus("Checking repeat-visit revalidation...")
+        let revalidation = await http.revalidate(home.finalURL,
+                                                 etag: home.header("etag"),
+                                                 lastModified: home.header("last-modified"))
+        if let rv = revalidation {
+            log("• Conditional re-request returned HTTP \(rv)\(rv == 304 ? " (cheap revalidation ✓)" : " (full re-download)")")
+        }
+        progress = 0.38
 
         setStatus("Discovering page assets...")
-        let discoveredAssets = PerformanceChecks.assetURLs(html: home.text, base: home.finalURL,
-                                                           limit: PerformanceChecks.discoverCap)
-        let toFetch = Array(discoveredAssets.prefix(PerformanceChecks.fetchCap))
-        log("• \(discoveredAssets.count) asset(s) referenced; measuring \(toFetch.count)")
-        setStatus("Measuring \(toFetch.count) page asset(s)...")
-        let assets = await http.timedAssetFetches(toFetch)
-        progress = 0.9
+        let discovered = PerformanceChecks.assetURLs(html: home.text, base: home.finalURL,
+                                                     limit: PerformanceChecks.discoverCap)
+        let blockingURLs = PerformanceChecks.renderBlockingURLs(html: home.text, base: home.finalURL)
+        let toFetch = Array(discovered.prefix(PerformanceChecks.fetchCap))
+        log("• \(discovered.count) asset(s) referenced (\(blockingURLs.count) render-blocking); measuring \(toFetch.count)")
 
-        setStatus("Scoring & analyzing...")
-        let report = PerformanceChecks.report(home: home,
-                                              samples: samples.map { $0.timing },
-                                              discoveredAssetCount: discoveredAssets.count,
-                                              assets: assets)
+        setStatus("Timing \(toFetch.count) page asset(s)...")
+        let session = http.makeTimingSession()
+        let level1 = await http.timedAssetFetches(toFetch, session: session)
+        progress = 0.7
+
+        var assets: [AssetSample] = level1.map {
+            AssetSample(url: $0.url, response: $0.response, timing: $0.timing,
+                        depth: 2, renderBlocking: blockingURLs.contains($0.url.absoluteString))
+        }
+
+        var nested: [URL] = []
+        var seen = Set(toFetch.map { $0.absoluteString })
+        seen.insert(home.finalURL.absoluteString)
+        for a in level1 where PerformanceChecks.classify(url: a.url, contentType: a.response.contentType) == .stylesheet {
+            for child in PerformanceChecks.cssSubResources(css: a.response.text, base: a.url,
+                                                           limit: PerformanceChecks.cssChildCap) {
+                if seen.insert(child.absoluteString).inserted { nested.append(child) }
+            }
+        }
+        nested = Array(nested.prefix(PerformanceChecks.cssChildCap))
+        if !nested.isEmpty {
+            setStatus("Timing \(nested.count) resource(s) referenced inside CSS...")
+            log("• \(nested.count) resource(s) only discoverable after CSS is parsed - measuring the deeper chain")
+            let level2 = await http.timedAssetFetches(nested, session: session)
+            assets += level2.map {
+                AssetSample(url: $0.url, response: $0.response, timing: $0.timing,
+                            depth: 3, renderBlocking: false)
+            }
+        }
+        session.finishTasksAndInvalidate()
+        progress = 0.88
+
+        setStatus("Scoring & building the improvement plan...")
+        let probe = PerformanceProbe(home: home,
+                                     coldSamples: cold.map { $0.timing },
+                                     warmSamples: warm.map { $0.timing },
+                                     discoveredAssetCount: discovered.count + nested.count,
+                                     assets: assets,
+                                     revalidationStatus: revalidation)
+        let report = PerformanceChecks.report(probe: probe)
         perfReport = report
         addFindings(report.findings)
 
         progress = 1.0
         log("✓ Performance score: \(report.score)/100 (\(report.grade)) · page \(PerformanceChecks.kb(report.totalWireBytes)) over \(report.requestCount) request(s)")
+        if let slowest = report.slowest.first {
+            log("• Slowest request: \(slowest.name) at \(PerformanceChecks.ms(slowest.ms))")
+        }
+        for (i, o) in report.opportunities.prefix(3).enumerated() {
+            log("• Fix #\(i + 1): \(o.title) — \(o.impactLabel)")
+        }
         finishScan()
     }
 

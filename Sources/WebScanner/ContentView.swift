@@ -1012,7 +1012,7 @@ private struct ResultsPanel: View {
         case .database:         return "Checks for exposed databases, admin tools, leaked dumps, and unauthenticated access."
         case .hostScan:         return "Profiles the host, network provider, certificates, public services, and infrastructure."
         case .info:             return "Collects a quick, read-only overview of the target and its public services."
-        case .performance:      return "Measures response time, page weight, request count, and the slowest parts of the page."
+        case .performance:      return "Times every request, finds what is slow and why, then ranks the fixes by the time each one saves."
         case .userView:         return "Tests the parts of the site a visitor can control, including forms, redirects, browser storage, and public endpoints."
         }
     }

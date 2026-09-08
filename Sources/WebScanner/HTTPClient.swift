@@ -197,11 +197,36 @@ final class HTTPClient: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
         }
         return out
     }
+    func timedColdFetches(_ url: URL, count: Int) async -> [(response: HTTPResponse, timing: RequestTiming)] {
+        var out: [(response: HTTPResponse, timing: RequestTiming)] = []
+        for _ in 0..<max(1, count) {
+            let session = URLSession(configuration: timingConfig())
+            if let s = await timedFetch(url, session: session) { out.append(s) }
+            session.finishTasksAndInvalidate()
+        }
+        return out
+    }
 
-    func timedAssetFetches(_ urls: [URL], concurrency: Int = 6) async -> [(url: URL, response: HTTPResponse, timing: RequestTiming)] {
+    func makeTimingSession() -> URLSession { URLSession(configuration: timingConfig()) }
+
+    func timedFetchOne(_ url: URL, session: URLSession) async -> (response: HTTPResponse, timing: RequestTiming)? {
+        guard let r = await timedFetch(url, session: session) else { return nil }
+        return (response: r.0, timing: r.1)
+    }
+
+    func revalidate(_ url: URL, etag: String?, lastModified: String?) async -> Int? {
+        guard etag != nil || lastModified != nil else { return nil }
+        var extra: [String: String] = [:]
+        if let etag { extra["If-None-Match"] = etag }
+        if let lastModified { extra["If-Modified-Since"] = lastModified }
+        return await fetch(url, method: "GET", extraHeaders: extra)?.status
+    }
+
+    func timedAssetFetches(_ urls: [URL], concurrency: Int = 6,
+                           session providedSession: URLSession? = nil) async -> [(url: URL, response: HTTPResponse, timing: RequestTiming)] {
         guard !urls.isEmpty else { return [] }
-        let session = URLSession(configuration: timingConfig())
-        defer { session.finishTasksAndInvalidate() }
+        let session = providedSession ?? URLSession(configuration: timingConfig())
+        defer { if providedSession == nil { session.finishTasksAndInvalidate() } }
         var out: [(url: URL, response: HTTPResponse, timing: RequestTiming)] = []
         for batch in urls.chunked(into: max(1, concurrency)) {
             await withTaskGroup(of: (URL, HTTPResponse, RequestTiming)?.self) { group in
