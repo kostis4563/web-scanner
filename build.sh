@@ -50,6 +50,10 @@ if [[ -f "Resources/AppIcon.icns" ]]; then
 	cp "Resources/AppIcon.icns" "$DISPLAY_APP/Contents/Resources/AppIcon.icns"
 fi
 
+if [[ -f "Resources/detections.json" ]]; then
+	cp "Resources/detections.json" "$DISPLAY_APP/Contents/Resources/detections.json"
+fi
+
 echo "==> Code signing (ad-hoc)"
 codesign --force --deep --sign - "$DISPLAY_APP" >/dev/null 2>&1 || \
 	echo "   (ad-hoc signing skipped/failed - app will still run)"

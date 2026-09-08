@@ -1986,7 +1986,7 @@ enum PerformanceChecks {
         }
     }
     private static func captureTags(_ pattern: String, _ text: String) -> [String] {
-        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
+        guard let re: NSRegularExpression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
         let ns = text as NSString
         return re.matches(in: text, range: NSRange(location: 0, length: ns.length)).map { ns.substring(with: $0.range) }
     }

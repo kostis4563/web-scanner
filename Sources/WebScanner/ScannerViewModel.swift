@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 
 struct Soft404Baseline {
     let is200ForEverything: Bool
@@ -162,6 +163,19 @@ final class ScannerViewModel: ObservableObject {
         http.options = buildRequestOptions()
         SecretScanner.revealSecrets = revealSecrets
         resetState()
+        let detectionReport = CustomDetections.reload()
+        if detectionReport.created {
+            log("• Created editable detections file: \(detectionReport.url.path)")
+        }
+        if detectionReport.contentCount > 0 || detectionReport.pathCount > 0 {
+            log("• Loaded \(detectionReport.contentCount) custom content + \(detectionReport.pathCount) custom path detection(s)")
+        }
+        for warning in detectionReport.warnings.prefix(12) {
+            log("⚠️ Custom detection config: \(warning)")
+        }
+        if detectionReport.warnings.count > 12 {
+            log("⚠️ Custom detection config: \(detectionReport.warnings.count - 12) more warning(s)")
+        }
         isScanning = true
         startedAt = Date()
         finishedAt = nil
@@ -204,6 +218,16 @@ final class ScannerViewModel: ObservableObject {
             scannedURL = base
             let host = base?.host ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
             activeScanTask = Task { await runUserViewScan(host: host, base: base!) }
+        }
+    }
+
+    func openDetectionConfig() {
+        do {
+            let result = try CustomDetections.ensureConfigFile()
+            NSWorkspace.shared.open(result.url)
+            log("• Custom detections: \(result.url.path)")
+        } catch {
+            log("❌ Could not open custom detections: \(error.localizedDescription)")
         }
     }
 
@@ -274,6 +298,7 @@ final class ScannerViewModel: ObservableObject {
         let origin = originString(of: home.finalURL)
         let host = home.finalURL.host ?? host0
         log("✓ Connected - HTTP \(home.status) at \(home.finalURL.absoluteString)")
+        addFindings(CustomDetections.scanContent(home.text, source: home.finalURL.absoluteString))
         progress = 0.04
 
         setStatus("Calibrating soft-404 baseline...")
@@ -343,6 +368,9 @@ final class ScannerViewModel: ObservableObject {
         var kind: DiscoveredURL.Kind = isHTML ? .page : .file
         if HTMLHelpers.isOpenDirectory(resp.text) { kind = .openDirectory; notable = true }
 
+        let customHits = CustomDetections.scanContent(resp.text, source: resp.finalURL.absoluteString)
+        if !customHits.isEmpty { notable = true; addFindings(customHits) }
+
         if deepSecretScan, !isHTML, resp.status == 200, resp.body.count > 0 {
             let hits = SecretScanner.scan(resp.text, source: resp.finalURL.absoluteString)
             if !hits.isEmpty { notable = true; addFindings(hits) }
@@ -404,6 +432,7 @@ final class ScannerViewModel: ObservableObject {
             origin = originString(of: home.finalURL)
             log("✓ Web server responded - HTTP \(home.status) at \(home.finalURL.absoluteString)")
 
+            addFindings(CustomDetections.scanContent(home.text, source: home.finalURL.absoluteString))
             addFindings(SecretScanner.scan(home.text, source: home.finalURL.absoluteString))
         } else {
             log("• No web server on 80/443 - continuing with network-level database checks.")
@@ -644,6 +673,7 @@ final class ScannerViewModel: ObservableObject {
             addFinding(Checks.generalInfo(home))
             addFindings(VersionChecks.fromHeaders(home))
             addFindings(VersionChecks.fromHTML(home.text, location: home.finalURL.absoluteString))
+            addFindings(CustomDetections.scanContent(home.text, source: home.finalURL.absoluteString))
         } else {
             log("• No web server on 80/443 - continuing with host-level info only.")
         }
@@ -693,6 +723,7 @@ final class ScannerViewModel: ObservableObject {
         }
         scannedURL = home.finalURL
         log("✓ Connected - HTTP \(home.status) at \(home.finalURL.absoluteString)")
+        addFindings(CustomDetections.scanContent(home.text, source: home.finalURL.absoluteString))
         if let c = cold.first?.timing {
             log("• Cold setup: DNS \(PerformanceChecks.ms(c.dnsMs)) · TCP \(PerformanceChecks.ms(c.tcpMs)) · TLS \(PerformanceChecks.ms(c.tlsMs))")
         }
@@ -1160,6 +1191,7 @@ final class ScannerViewModel: ObservableObject {
         if let home {
             scannedURL = home.finalURL
             log("✓ Web server responded - HTTP \(home.status) at \(home.finalURL.absoluteString)")
+            addFindings(CustomDetections.scanContent(home.text, source: home.finalURL.absoluteString))
         } else {
             log("• No web server on 80/443 - continuing with host-level checks only.")
         }
@@ -1424,6 +1456,7 @@ final class ScannerViewModel: ObservableObject {
         let origin = originString(of: home.finalURL)
         let host = home.finalURL.host ?? host0
         log("✓ Connected - HTTP \(home.status) at \(home.finalURL.absoluteString)")
+        addFindings(CustomDetections.scanContent(home.text, source: home.finalURL.absoluteString))
         progress = 0.08
 
         setStatus("Checking HTTP → HTTPS redirect...")
@@ -1830,7 +1863,7 @@ final class ScannerViewModel: ObservableObject {
     }
 
     private func probeCurated(origin: String, soft: Soft404Baseline) async {
-        let allPaths = SensitivePath.all
+        let allPaths = SensitivePath.all + CustomDetections.pathRules
         let client = http
         var done = 0
         for batch in allPaths.chunked(into: 8) {

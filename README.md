@@ -236,6 +236,41 @@ Then double-click **WebScanner.app** or run `open WebScanner.app`.
 > Site Scan's Aggressive/Max intensities, Port Scan's Full profile, and especially
 > **Full Audit** are slow and noisy — use them only with explicit permission.
 
+## Add detections without Swift
+
+Click the **crosshair button** beside the scan-settings button. Web Scanner opens
+an editable JSON file at:
+
+```text
+~/Library/Application Support/WebScanner/detections.json
+```
+
+The file is created automatically from [`Resources/detections.json`](Resources/detections.json)
+and contains disabled examples. Duplicate an example, give it a unique `id`, set
+`enabled` to `true`, edit the plain-text values, and save. The file is reloaded
+before every scan; rebuilding or restarting the app is not required. A malformed
+rule is skipped and explained in the scan console instead of crashing the scan.
+
+Two rule types are supported:
+
+- `contentDetections` search downloaded HTML, JavaScript, JSON, CSS, maps, and
+  other text. `matchType` can be `contains` or `regex`; matching is
+  case-insensitive unless `caseSensitive` is `true`. Use `redactMatch: true` for
+  credentials so the matched value follows the app's **Reveal secrets** setting.
+- `pathDetections` request an extra relative path on the authorized host and
+  confirm it using `bodyContainsAny` (any listed phrase matches) and/or
+  `bodyRegex`. These run during Site Scan at Standard or deeper, and Full Audit.
+  Set `scanForSecrets` to also run the built-in credential scanner on a confirmed
+  response. For a binary or signature-free file, explicitly set
+  `allowAnyBody: true`.
+
+Only `id`, `title`, and `pattern` are required for a content rule. Path rules need
+`id`, `title`, `path`, plus a content condition (or `allowAnyBody`). Severity may
+be `critical`, `high`, `medium`, `low`, or `info`; omitted optional finding text
+gets safe defaults. JSON backslashes must be doubled inside regex strings (for
+example, `"\\d+"`). Advanced users can load another file by setting the
+`WEBSCANNER_DETECTIONS_FILE` environment variable to its absolute path.
+
 ## How it works
 
 The scanner is entirely client-side networking (`URLSession` for HTTP, the Network

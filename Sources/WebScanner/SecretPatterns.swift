@@ -566,11 +566,14 @@ enum SecretScanner {
                 findings.append(makeFinding(
                     name: pattern.name, severity: pattern.severity, fix: pattern.fix,
                     secret: secret, matchRange: m.range, ns: ns, source: source))
-                if findings.count > 200 { return findings }
+                if findings.count > 200 {
+                    return findings + CustomDetections.scanContent(text, source: source)
+                }
             }
         }
 
         findings += entropyScan(text, source: source, alreadySeen: seenValues)
+        findings += CustomDetections.scanContent(text, source: source)
         return findings
     }
 

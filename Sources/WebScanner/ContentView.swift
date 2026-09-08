@@ -174,6 +174,21 @@ private struct TopBar: View {
                 .buttonStyle(.plain)
                 .help(showOptions ? "Hide configuration" : "Show configuration")
 
+                Button {
+                    vm.openDetectionConfig()
+                } label: {
+                    Image(systemName: "scope")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DS.C.textDim)
+                        .frame(width: 42, height: 42)
+                        .background(DS.C.surface)
+                        .overlay(RoundedRectangle(cornerRadius: DS.R.sm)
+                            .strokeBorder(Color.white.opacity(0.06)))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.R.sm))
+                }
+                .buttonStyle(.plain)
+                .help("Open custom detections JSON")
+
                 ScanModeMenu(vm: vm)
 
                 HStack(spacing: 10) {
@@ -384,6 +399,25 @@ private struct OptionsDrawer: View {
 
                 if vm.mode != .portScan {
                     RequestOptionsView(vm: vm)
+                }
+
+                DSCard(padding: DS.S.sm, radius: DS.R.md) {
+                    HStack(spacing: DS.S.sm) {
+                        Image(systemName: "scope")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(DS.C.textDim)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Custom detections")
+                                .font(DS.font(12.5, .medium))
+                                .foregroundStyle(DS.C.textBody)
+                            Text("Add signatures and paths without changing Swift")
+                                .font(DS.font(10.5))
+                                .foregroundStyle(DS.C.textFaint)
+                        }
+                        Spacer(minLength: DS.S.xs)
+                        Button("Edit JSON") { vm.openDetectionConfig() }
+                            .buttonStyle(DSSecondaryButtonStyle())
+                    }
                 }
 
                 SummaryView(vm: vm)

@@ -183,6 +183,12 @@ final class DirBruteForcer {
             kind = .page
         }
 
+        let customHits = CustomDetections.scanContent(text, source: resp.finalURL.absoluteString)
+        if !customHits.isEmpty {
+            notable = true
+            for f in customHits { await reporter?.discoveryFinding(f) }
+        }
+
         if cfg.runSecretScan, !isHTML, code == 200 || code == 206 {
             let hits = SecretScanner.scan(text, source: resp.finalURL.absoluteString)
             if !hits.isEmpty {

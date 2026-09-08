@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "instructions": "Duplicate an example, give it a unique id, set enabled to true, and edit its values. This file is reloaded before every scan.",
+  "contentDetections": [
+    {
+      "id": "example-debug-marker",
+      "enabled": false,
+      "title": "Application debug mode marker exposed",
+      "severity": "medium",
+      "category": "Debug Exposure",
+      "matchType": "contains",
+      "pattern": "APP_DEBUG=true",
+      "caseSensitive": false,
+      "redactMatch": false,
+      "detail": "The response contains the custom debug-mode marker configured for this application.",
+      "exploit": "Debug mode can reveal stack traces, source paths, configuration, and secrets when an error occurs.",
+      "remediation": "Disable debug mode in production and return generic error pages.",
+      "reference": "CWE-215: Insertion of Sensitive Information Into Debugging Code"
+    },
+    {
+      "id": "example-company-token",
+      "enabled": false,
+      "title": "Exposed ACME access token",
+      "severity": "high",
+      "category": "Leaked Secret",
+      "matchType": "regex",
+      "pattern": "acme_(?:live|prod)_[A-Za-z0-9_-]{24,}",
+      "caseSensitive": false,
+      "redactMatch": true,
+      "detail": "A value matching the company's access-token format is present in browser-visible content.",
+      "exploit": "Anyone who can load the response may be able to reuse the token against the associated service.",
+      "remediation": "Revoke and rotate the token, remove it from client-visible files, and load it only on the server.",
+      "reference": "CWE-798: Use of Hard-coded Credentials"
+    }
+  ],
+  "pathDetections": [
+    {
+      "id": "example-custom-config-path",
+      "enabled": false,
+      "path": "internal/status.json",
+      "title": "Internal status endpoint exposed",
+      "severity": "medium",
+      "category": "Information Disclosure",
+      "bodyContainsAny": [
+        "databaseHost",
+        "buildRevision"
+      ],
+      "bodyMustNotContain": [
+        "<!doctype html",
+        "<html"
+      ],
+      "scanForSecrets": true,
+      "exploit": "The endpoint can reveal internal services, deployment versions, or credentials useful for follow-on attacks.",
+      "remediation": "Remove the endpoint from the public site or require authentication and return only non-sensitive health data.",
+      "reference": "CWE-200: Exposure of Sensitive Information"
+    }
+  ]
+}
