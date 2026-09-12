@@ -12,15 +12,17 @@ enum DS {
         static let border       = Color(hex: 0x24242C)
         static let borderStrong = Color(hex: 0x393944)
         static let grid         = Color(hex: 0x17171D)
+        static let hairline      = Color.white.opacity(0.07)
+        static let hairlineActive = Color.white.opacity(0.14)
 
         static let text         = Color(hex: 0xF6F6F7)
         static let textBody     = Color(hex: 0xC1C1C7)
         static let textDim      = Color(hex: 0x85858F)
         static let textFaint    = Color(hex: 0x5B5B64)
 
-        static let accent       = Color(hex: 0x98A7F5)
-        static let accentBright = Color(hex: 0xBCC5FF)
-        static let accentDeep   = Color(hex: 0x7383D1)
+        static let accent       = Color(hex: 0xE6E6EA)
+        static let accentBright = Color(hex: 0xFAFAFB)
+        static let accentDeep   = Color(hex: 0x9B9BA4)
         static let onAccent     = Color(hex: 0x090A10)
 
         static let critical     = Color(hex: 0xF0737A)
@@ -75,9 +77,10 @@ struct DSLabel: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
-        Text(text)
-            .font(DS.font(11, .medium))
-            .foregroundStyle(DS.C.textDim)
+        Text(text.uppercased())
+            .font(DS.font(10, .semibold))
+            .tracking(0.9)
+            .foregroundStyle(DS.C.textFaint)
     }
 }
 
@@ -93,7 +96,7 @@ struct DSCard<Content: View>: View {
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 1)
+                    .strokeBorder(DS.C.hairline, lineWidth: 1)
             )
     }
 }
@@ -132,7 +135,7 @@ struct DSSecondaryButtonStyle: ButtonStyle {
             .background(configuration.isPressed ? DS.C.hover : DS.C.surface)
             .clipShape(RoundedRectangle(cornerRadius: DS.R.sm, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: DS.R.sm, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.09), lineWidth: 1))
+                .strokeBorder(DS.C.hairline, lineWidth: 1))
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .contentShape(RoundedRectangle(cornerRadius: DS.R.sm, style: .continuous))
     }

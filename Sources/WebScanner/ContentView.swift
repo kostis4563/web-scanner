@@ -78,6 +78,9 @@ struct ContentView: View {
         .background(DS.C.bg)
         .tint(DS.C.accent)
         .preferredColorScheme(.dark)
+        .onOpenURL { url in
+            vm.handleDeepLink(url)
+        }
     }
 
     private func border() -> some View {
@@ -129,6 +132,7 @@ private struct WorkbenchHeader: View {
     private var statusLabel: String {
         if vm.isScanning { return vm.statusText }
         if vm.finishedAt != nil { return vm.statusText }
+        if let source = vm.linkedSource { return "Linked · \(source)" }
         return "Idle"
     }
 
@@ -136,6 +140,7 @@ private struct WorkbenchHeader: View {
         if vm.isScanning { return DS.C.accent }
         if vm.statusText == "Scan cancelled" { return DS.C.critical }
         if vm.finishedAt != nil { return DS.C.success }
+        if vm.linkedSource != nil { return DS.C.accent }
         return DS.C.textFaint
     }
 }
@@ -168,7 +173,7 @@ private struct TopBar: View {
                         .frame(width: 42, height: 42)
                     .background(DS.C.surface)
                     .overlay(RoundedRectangle(cornerRadius: DS.R.sm)
-                        .strokeBorder(Color.white.opacity(showOptions ? 0.11 : 0.06)))
+                        .strokeBorder(showOptions ? DS.C.hairlineActive : DS.C.hairline))
                     .clipShape(RoundedRectangle(cornerRadius: DS.R.sm))
                 }
                 .buttonStyle(.plain)
@@ -183,7 +188,7 @@ private struct TopBar: View {
                         .frame(width: 42, height: 42)
                         .background(DS.C.surface)
                         .overlay(RoundedRectangle(cornerRadius: DS.R.sm)
-                            .strokeBorder(Color.white.opacity(0.06)))
+                            .strokeBorder(DS.C.hairline))
                         .clipShape(RoundedRectangle(cornerRadius: DS.R.sm))
                 }
                 .buttonStyle(.plain)
@@ -207,7 +212,7 @@ private struct TopBar: View {
                 .background(DS.C.surface)
                 .clipShape(RoundedRectangle(cornerRadius: DS.R.sm, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: DS.R.sm)
-                    .strokeBorder(Color.white.opacity(0.09), lineWidth: 1))
+                    .strokeBorder(DS.C.hairline, lineWidth: 1))
 
                 if vm.isScanning {
                     Button(action: { vm.stopScan() }) {
@@ -311,7 +316,7 @@ private struct ScanModeMenu: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.R.sm, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: DS.R.sm, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(DS.C.hairline, lineWidth: 1)
         }
         .overlay(alignment: .trailing) {
             Image(systemName: "chevron.down")
@@ -335,9 +340,10 @@ private struct OptionsDrawer: View {
             VStack(alignment: .leading, spacing: DS.S.lg) {
                 VStack(alignment: .leading, spacing: DS.S.md) {
                     HStack(alignment: .top) {
-                        Text("Scan settings")
-                            .font(DS.font(11.5, .medium))
-                            .foregroundStyle(DS.C.textDim)
+                        Text("Scan settings".uppercased())
+                            .font(DS.font(10, .semibold))
+                            .tracking(0.9)
+                            .foregroundStyle(DS.C.textFaint)
                         Spacer()
                         Image(systemName: vm.mode.icon)
                             .font(.system(size: 14, weight: .medium))
@@ -917,7 +923,7 @@ private struct ResultsPanel: View {
             .frame(height: 30)
             .background(tab == value ? DS.C.surfaceElev : Color.clear)
             .overlay(RoundedRectangle(cornerRadius: DS.R.sm)
-                .strokeBorder(tab == value ? Color.white.opacity(0.08) : Color.clear))
+                .strokeBorder(tab == value ? DS.C.hairlineActive : Color.clear))
             .clipShape(RoundedRectangle(cornerRadius: DS.R.sm))
         }
         .buttonStyle(.plain)
@@ -1441,7 +1447,6 @@ private struct FindingCard: View {
                     Circle()
                         .fill(finding.severity.color)
                         .frame(width: 8, height: 8)
-                        .shadow(color: finding.severity.color.opacity(0.28), radius: 4)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(finding.title).font(DS.font(13.5, .semibold)).foregroundStyle(DS.C.text)
                         Text(finding.category)
@@ -1490,7 +1495,7 @@ private struct FindingCard: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.R.md, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: DS.R.md, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.065), lineWidth: 1)
+                .strokeBorder(DS.C.hairline, lineWidth: 1)
         )
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)

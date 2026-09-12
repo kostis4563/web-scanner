@@ -80,6 +80,8 @@ final class ScannerViewModel: ObservableObject {
     @Published var statusText: String = "Idle"
     @Published var logLines: [String] = []
 
+    @Published private(set) var linkedSource: String?
+
     @Published var scannedURL: URL?
     @Published var startedAt: Date?
     @Published var finishedAt: Date?
@@ -131,6 +133,35 @@ final class ScannerViewModel: ObservableObject {
     private var activeScanTask: Task<Void, Never>?
 
     var canStop: Bool { isScanning && activeScanTask != nil }
+
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "webscanner", url.host?.lowercased() == "scan" else {
+            return
+        }
+
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let rawTarget = components.queryItems?.first(where: { $0.name == "target" })?.value,
+              rawTarget.utf8.count <= 2048,
+              let normalizedTarget = normalizeTarget(rawTarget),
+              let targetScheme = normalizedTarget.scheme?.lowercased(),
+              targetScheme == "http" || targetScheme == "https" else {
+            statusText = "Could not import browser target"
+            log("⚠️ Rejected an invalid WebScanner link.")
+            return
+        }
+
+        let requestedMode = components.queryItems?.first(where: { $0.name == "mode" })?.value
+        let source = components.queryItems?.first(where: { $0.name == "source" })?.value
+        let sourceName = source == "sentinel-scope" ? "Sentinel Scope" : "Browser"
+
+        target = normalizedTarget.absoluteString
+        mode = requestedMode.flatMap(ScanMode.init(rawValue:)) ?? .siteScan
+        authorized = false
+        linkedSource = sourceName
+        statusText = "Target received from \(sourceName)"
+        log("↗ Imported \(normalizedTarget.host ?? normalizedTarget.absoluteString) from \(sourceName). Confirm authorization, then run the scan.")
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     func stopScan() {
         guard let task = activeScanTask else { return }

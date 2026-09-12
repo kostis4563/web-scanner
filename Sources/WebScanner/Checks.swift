@@ -181,7 +181,19 @@ enum Checks {
                 reference: "MDN: Referrer-Policy"))
         }
 
-        if r.header("permissions-policy") == nil {
+        if let pp = r.header("permissions-policy") {
+            let permissive = permissivePermissionsPolicyFeatures(pp)
+            if !permissive.isEmpty {
+                out.append(Finding(
+                    title: "Permissions-Policy grants powerful features to any origin",
+                    severity: .low, category: "Security Headers", location: loc,
+                    detail: "The Permissions-Policy allows the following powerful feature(s) for all origins ('*'): \(permissive.joined(separator: ", ")).",
+                    evidence: "Permissions-Policy: \(snippet(pp, max: 200))",
+                    exploit: "Granting a capability like camera, microphone or geolocation to '*' lets any embedded cross-origin iframe request it in this page's context, so an injected or third-party frame can reach hardware and location APIs that a tight policy would deny.",
+                    remediation: "Restrict powerful features to the origins that need them (or disable them): e.g. camera=(), microphone=(), geolocation=(self). Avoid the '*' allow-list for sensitive capabilities.",
+                    reference: "MDN: Permissions-Policy"))
+            }
+        } else {
             out.append(Finding(
                 title: "Missing Permissions-Policy",
                 severity: .info, category: "Security Headers", location: loc,
@@ -190,6 +202,18 @@ enum Checks {
                 exploit: "Powerful browser features (camera, microphone, geolocation) are not explicitly restricted, widening the impact of an XSS.",
                 remediation: "Add a Permissions-Policy that disables unused features, e.g. geolocation=(), camera=(), microphone=().",
                 reference: "MDN: Permissions-Policy"))
+        }
+
+        if let xpcdp = r.header("x-permitted-cross-domain-policies")?.lowercased().trimmingCharacters(in: .whitespaces),
+           xpcdp == "all" {
+            out.append(Finding(
+                title: "Permissive cross-domain policy (X-Permitted-Cross-Domain-Policies: all)",
+                severity: .low, category: "Security Headers", location: loc,
+                detail: "X-Permitted-Cross-Domain-Policies is set to 'all', permitting Adobe clients (Flash, Acrobat) to load cross-domain policy files from anywhere on this host.",
+                evidence: "X-Permitted-Cross-Domain-Policies: \(r.header("x-permitted-cross-domain-policies") ?? "")",
+                exploit: "An 'all' policy lets an attacker upload a crossdomain.xml (e.g. via an open upload path) that a legacy Adobe client will honour, enabling cross-domain data reads against this origin.",
+                remediation: "Set X-Permitted-Cross-Domain-Policies: none unless you specifically serve trusted cross-domain policy files.",
+                reference: "OWASP Secure Headers Project"))
         }
 
         if r.header("cross-origin-opener-policy") == nil {
@@ -284,6 +308,23 @@ enum Checks {
         return Int(ns.substring(with: m.range(at: 1)))
     }
 
+    static func permissivePermissionsPolicyFeatures(_ value: String) -> [String] {
+        let powerful: Set<String> = [
+            "camera", "microphone", "geolocation", "payment", "usb",
+            "display-capture", "midi", "serial", "bluetooth", "hid",
+        ]
+        var flagged: [String] = []
+        for part in value.lowercased().split(separator: ",") {
+            let toks = part.trimmingCharacters(in: .whitespaces).split(separator: "=", maxSplits: 1)
+            guard let feature = toks.first.map(String.init), powerful.contains(feature) else { continue }
+            let allow = toks.count > 1 ? toks[1].trimmingCharacters(in: .whitespaces) : ""
+            if allow == "*" || allow.split(whereSeparator: { $0 == " " || $0 == "(" || $0 == ")" || $0 == "\"" }).contains("*") {
+                flagged.append(feature)
+            }
+        }
+        return flagged
+    }
+
     static func cspWeaknesses(_ csp: String) -> (weaknesses: [String], severe: Bool) {
         let lower = csp.lowercased()
 
@@ -306,6 +347,9 @@ enum Checks {
             }
             if s.contains("data:") { out.append("script source allows 'data:' URIs (a known XSS vector)"); severe = true }
             if s.contains("http://") { out.append("script source allows plaintext http:// origins") }
+        }
+        if directives["default-src"] == nil {
+            out.append("no 'default-src' fallback (any fetch directive you did not explicitly set - connect-src, font-src, frame-src, worker-src … - is left unrestricted)")
         }
         if directives["object-src"] == nil && directives["default-src"] == nil {
             out.append("no 'object-src' (plugin/embed content is unrestricted)")
@@ -391,6 +435,7 @@ enum Checks {
             ("x-symfony-cache", "the Symfony HTTP-cache state"),
             ("x-runtime", "the backend request-processing time (a timing side-channel oracle)"),
             ("x-debug", "an application debug-mode indicator"),
+            ("x-application-context", "the Spring Boot application context - app name, active profile and port (Actuator endpoints may be reachable)"),
         ]
         for (h, meaning) in debugHeaders {
             if let v = r.header(h) {
@@ -419,6 +464,10 @@ enum Checks {
             ("x-turbo-charged-by", "the LiteSpeed / OpenLiteSpeed web-server banner", .info),
             ("x-litespeed-cache", "the LiteSpeed page-cache state (LiteSpeed web server / cache in use)", .info),
             ("liferay-portal", "the Liferay Portal edition and often its exact version", .low),
+            ("x-hostname", "the internal hostname of the server that handled the request", .low),
+            ("x-server-name", "the internal server/node name that handled the request", .low),
+            ("x-instance-id", "the hosting instance identifier that served the response", .info),
+            ("x-b3-traceid", "a B3/Zipkin distributed-tracing ID (an internal tracing backend is in use)", .info),
         ]
         for (h, meaning, sev) in fingerprintHeaders {
             if let v = r.header(h) {
@@ -495,6 +544,38 @@ enum Checks {
                     reference: "CWE-614 / RFC 6265bis cookie prefixes"))
             }
 
+            let sensitive = cookieLooksSensitive(name)
+
+            if sensitive, !lname.hasPrefix("__host-") {
+                let host = (r.finalURL.host ?? "").lowercased()
+                let scope = cookie.domain.lowercased().trimmingCharacters(in: .whitespaces)
+                let bareScope = scope.hasPrefix(".") ? String(scope.dropFirst()) : scope
+                if !bareScope.isEmpty, bareScope != host, host.hasSuffix("." + bareScope) {
+                    out.append(Finding(
+                        title: "Session cookie scoped to a parent domain: \(name)",
+                        severity: .low, category: "Cookies", location: loc,
+                        detail: "Session/auth cookie '\(name)' is scoped to the parent domain '\(scope)' rather than the host '\(host)', so every sibling and child subdomain receives it.",
+                        evidence: r.setCookieRaw.map { snippet($0, max: 160) } ?? "Set-Cookie: \(name)=...; Domain=\(scope)",
+                        exploit: "A cookie shared across the whole domain can be read or overwritten by any subdomain. A less-trusted or attacker-controlled subdomain (a compromised marketing site, an XSS on a sibling app) can then steal the session or plant one on the victim (cookie tossing / session fixation).",
+                        remediation: "Drop the Domain attribute so the cookie is host-only, or use the __Host- prefix (Secure; Path=/; no Domain). Only widen the scope to subdomains that genuinely need the session.",
+                        reference: "CWE-1275 / RFC 6265bis cookie scope"))
+                }
+
+                if !cookie.isSessionOnly, let exp = cookie.expiresDate {
+                    let days = exp.timeIntervalSinceNow / 86_400
+                    if days > 7 {
+                        out.append(Finding(
+                            title: "Persistent session cookie: \(name)",
+                            severity: .low, category: "Cookies", location: loc,
+                            detail: "Session/auth cookie '\(name)' is persistent, expiring in ~\(Int(days.rounded())) day(s) rather than at the end of the browser session.",
+                            evidence: r.setCookieRaw.map { snippet($0, max: 160) } ?? "Set-Cookie: \(name)=...; Expires=\(exp)",
+                            exploit: "A long-lived session cookie is written to disk and survives browser restarts, widening the window in which a stolen token stays valid and leaving the session recoverable from a shared or discarded machine.",
+                            remediation: "Issue session/auth cookies without Expires/Max-Age so they are session-scoped, and enforce a short server-side session lifetime with idle and absolute timeouts.",
+                            reference: "CWE-613: Insufficient Session Expiration"))
+                    }
+                }
+            }
+
             let ownSegment = cookieSegments.first { $0.trimmingCharacters(in: .whitespaces).hasPrefix(lname + "=") }
             if let seg = ownSegment, seg.contains("samesite=none"), !seg.contains("secure") {
                 out.append(Finding(
@@ -531,6 +612,11 @@ enum Checks {
                 reference: "CWE-1004 / CWE-614"))
         }
         return out
+    }
+
+    private static func cookieLooksSensitive(_ name: String) -> Bool {
+        let n = name.lowercased()
+        return ["sess", "auth", "token", "jwt", "sid", "login", "remember", "csrf", "xsrf"].contains { n.contains($0) }
     }
 
     private static func splitSetCookie(_ raw: String) -> [String] {

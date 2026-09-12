@@ -232,6 +232,14 @@ Then double-click **WebScanner.app** or run `open WebScanner.app`.
    to the **Discovered** / **Ports** tab and the mode dashboards.
 6. **Export** a Markdown / JSON report, or the discovered-URL / open-port list.
 
+### Sentinel Scope browser handoff
+
+The Sentinel Scope Chrome extension can open the current target directly in Web Scanner. Build the
+app once so macOS registers its `webscanner://scan` URL scheme, then use **WebScanner ↗** in the
+extension popup. Web Scanner validates the HTTP(S) target, selects Site Scan, and leaves the scan
+stopped until you confirm authorization and click **Run scan**. Findings, credentials, and tokens are
+never included in the deep link.
+
 > **Depth & noise:** Quick modes (Info, Performance) touch the target lightly.
 > Site Scan's Aggressive/Max intensities, Port Scan's Full profile, and especially
 > **Full Audit** are slow and noisy — use them only with explicit permission.
