@@ -54,6 +54,17 @@ if [[ -f "Resources/detections.json" ]]; then
 	cp "Resources/detections.json" "$DISPLAY_APP/Contents/Resources/detections.json"
 fi
 
+echo "==> Building React UI (webui)"
+if command -v npm >/dev/null 2>&1; then
+	( cd webui && { [[ -d node_modules ]] || npm install; } && npm run build )
+	rm -rf "$DISPLAY_APP/Contents/Resources/web"
+	mkdir -p "$DISPLAY_APP/Contents/Resources/web"
+	cp -R webui/dist/. "$DISPLAY_APP/Contents/Resources/web/"
+else
+	echo "   ERROR: 'npm' not found - the app UI cannot be built. Install Node.js." >&2
+	exit 1
+fi
+
 echo "==> Code signing (ad-hoc)"
 codesign --force --deep --sign - "$DISPLAY_APP" >/dev/null 2>&1 || \
 	echo "   (ad-hoc signing skipped/failed - app will still run)"
