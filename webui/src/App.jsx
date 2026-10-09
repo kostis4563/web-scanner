@@ -5,6 +5,17 @@ import ScanForm from './components/ScanForm.jsx'
 import ScanRunning from './components/ScanRunning.jsx'
 import Results from './components/Results.jsx'
 import LiveSelect from './components/LiveSelect.jsx'
+import ToolSwitcher from './components/ToolSwitcher.jsx'
+import EncoderTool from './components/tools/EncoderTool.jsx'
+import HashTool from './components/tools/HashTool.jsx'
+import JwtTool from './components/tools/JwtTool.jsx'
+import PasswordTool from './components/tools/PasswordTool.jsx'
+import UuidTool from './components/tools/UuidTool.jsx'
+import ColorTool from './components/tools/ColorTool.jsx'
+import HeadersTool from './components/tools/HeadersTool.jsx'
+import IpInfoTool from './components/tools/IpInfoTool.jsx'
+import LiveViewTool from './components/tools/LiveViewTool.jsx'
+import WebhookTool from './components/tools/WebhookTool.jsx'
 import { mockFindings, mockLog, pickRefusal } from './data/scanner.js'
 import {
   isNative,
@@ -15,7 +26,22 @@ import {
   exportReport as nativeExport,
 } from './bridge.js'
 
+const UTILITY_TOOLS = {
+  encoder: EncoderTool,
+  hash: HashTool,
+  jwt: JwtTool,
+  password: PasswordTool,
+  uuid: UuidTool,
+  color: ColorTool,
+  headers: HeadersTool,
+  ipinfo: IpInfoTool,
+  liveview: LiveViewTool,
+  webhook: WebhookTool,
+}
+
 export default function App() {
+  const [view, setView] = useState('webscanner') // 'webscanner' | utility tool id
+
   const [mode, setMode] = useState('siteScan')
   const [intensity, setIntensity] = useState('standard')
   const [target, setTarget] = useState('')
@@ -42,6 +68,14 @@ export default function App() {
       if (snap.intensity) setIntensity(snap.intensity)
     }
   }, [snap?.target])
+
+  // If the native side kicks off (or finished) a scan on its own while the user
+  // is in another tool, jump back to WebScanner so it isn't hidden.
+  useEffect(() => {
+    if (isNative && view !== 'webscanner' && (snap?.running || (snap?.done && !forceIdle))) {
+      setView('webscanner')
+    }
+  }, [snap?.running, snap?.done])
 
   const hostOf = (t) => t.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || t
 
@@ -102,12 +136,18 @@ export default function App() {
   const resultHost = isNative ? snap?.host || hostOf(target) : hostOf(target)
   const resultMode = isNative ? snap?.mode || mode : mode
 
+  const UtilityTool = UTILITY_TOOLS[view]
+
   return (
     <div className="flex min-h-screen flex-col bg-bg font-sans text-ink antialiased">
       <Header />
 
       <main className="mx-auto w-full max-w-[960px] flex-1 rule-x pt-[var(--header-h)]">
-        {stage === 'idle' && (
+        <ToolSwitcher value={view} onChange={setView} />
+
+        {UtilityTool && <UtilityTool />}
+
+        {view === 'webscanner' && stage === 'idle' && (
           <div className="animate-rise">
             <section className="border-b border-dashed border-line px-4 py-7 sm:px-8">
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-subtle">
@@ -138,7 +178,7 @@ export default function App() {
           </div>
         )}
 
-        {stage === 'running' && (
+        {view === 'webscanner' && stage === 'running' && (
           <ScanRunning
             log={log}
             target={resultHost}
@@ -150,7 +190,7 @@ export default function App() {
           />
         )}
 
-        {stage === 'results' && (
+        {view === 'webscanner' && stage === 'results' && (
           <Results
             mode={resultMode}
             target={resultHost}
