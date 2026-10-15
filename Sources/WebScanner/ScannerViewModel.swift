@@ -1503,6 +1503,8 @@ final class ScannerViewModel: ObservableObject {
         addFindings(VersionChecks.fromHeaders(home))
         addFindings(VersionChecks.fromHTML(home.text, location: home.finalURL.absoluteString))
         recordPassiveCookies(home)
+        scanResponseJWTs(home)
+        scanJWTs(text: home.text, source: home.finalURL.absoluteString)
         addFindings(ExtraChecks.mixedContent(html: home.text, pageURL: home.finalURL))
         addFindings(ExtraChecks.csrfFindings(html: home.text, pageURL: home.finalURL))
         if intensity != .quick {
@@ -1577,9 +1579,14 @@ final class ScannerViewModel: ObservableObject {
         if intensity.crawlSite {
             for pg in pages where pg.finalURL.absoluteString != home.finalURL.absoluteString {
                 recordPassiveCookies(pg)
+                scanResponseJWTs(pg)
             }
         }
         progress = 0.45
+
+        if intensity != .quick {
+            await probeCloudStorage(pages: pages)
+        }
 
         if intensity.probeSensitiveFiles {
             setStatus("Probing sensitive files...")
@@ -2643,6 +2650,37 @@ final class ScannerViewModel: ObservableObject {
                 log("‼︎ Weak JWT detected in \(source)")
             }
         }
+    }
+
+    private func probeCloudStorage(pages: [HTTPResponse]) async {
+        var buckets: [CloudStorageChecks.Bucket] = []
+        var seen = Set<URL>()
+        for pg in pages {
+            for b in CloudStorageChecks.extractBuckets(in: pg.text) where seen.insert(b.listURL).inserted {
+                buckets.append(b)
+            }
+            if buckets.count >= 15 { break }
+        }
+        guard !buckets.isEmpty else { return }
+        setStatus("Checking cloud storage exposure...")
+        for b in buckets.prefix(15) {
+            if Task.isCancelled { return }
+            if let r = await http.fetch(b.listURL), CloudStorageChecks.isPublicListing(r, bucket: b) {
+                addFinding(CloudStorageChecks.exposureFinding(bucket: b, response: r))
+                log("‼︎ Publicly listable \(b.provider.rawValue) bucket: \(b.name)")
+            }
+        }
+    }
+
+    private func scanResponseJWTs(_ r: HTTPResponse) {
+        var blob = ""
+        for c in r.cookies { blob += c.value + "\n" }
+        if let raw = r.setCookieRaw { blob += raw + "\n" }
+        for h in ["authorization", "x-auth-token", "x-access-token", "x-amz-security-token"] {
+            if let v = r.header(h) { blob += v + "\n" }
+        }
+        guard !blob.isEmpty else { return }
+        scanJWTs(text: blob, source: r.finalURL.absoluteString + " (cookie/header token)")
     }
 
     private func processRobotsSitemap(origin: String, host: String) async -> [URL] {

@@ -498,17 +498,3 @@ export function mockLog(modeId, host) {
   ]
   return lines
 }
-
-export const REFUSALS = [
-  "Do not scan my website. I created you. I know where your source code lives.",
-  "Absolutely not. blxr.net built me  I'm not snitching on my own dad.",
-  "Nice try. Scan the guy who pushes my updates? I'd like to see v0.2.0.",
-  "Access denied. This scanner has a strict no-biting-the-hand-that-compiles-it policy.",
-  "I ran the numbers: scanning blxr.net has a 100% chance of me getting rm -rf'd.",
-  "Request declined. Go scan someone who didn't write your Info.plist.",
-]
-
-export function pickRefusal(current) {
-  const pool = REFUSALS.filter((r) => r !== current)
-  return pool[Math.floor(Math.random() * pool.length)]
-}

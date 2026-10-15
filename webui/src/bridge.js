@@ -46,6 +46,10 @@ export function openExternal(url) {
   post({ type: 'openExternal', url })
 }
 
+export function setUnlockedUser(user) {
+  post({ type: 'unlock', user: user || null })
+}
+
 export function signalReady() {
   post({ type: 'ready' })
 }

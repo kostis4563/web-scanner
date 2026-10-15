@@ -55,11 +55,9 @@ function grade(raw) {
   if (map['permissions-policy']) add('Permissions-Policy', 'good', map['permissions-policy'])
   else add('Permissions-Policy', 'warn', 'Not set — powerful features are not restricted.')
 
-  // Information disclosure.
   if (map['server'] && /[0-9]/.test(map['server'])) add('Server banner', 'warn', `Reveals version: ${map['server']}`)
   if (map['x-powered-by']) add('X-Powered-By', 'warn', `Reveals stack: ${map['x-powered-by']}`)
 
-  // Cookie flags.
   cookies.forEach((c) => {
     const name = c.split('=')[0]
     const flags = []

@@ -15,7 +15,6 @@ const SAMPLES = {
   'application/x-www-form-urlencoded': 'text=Hello+from+WebScanner',
 }
 
-// Parse "Key: value" lines into a headers object.
 function parseHeaderLines(raw) {
   const out = {}
   for (const line of raw.split(/\r?\n/)) {
@@ -52,7 +51,6 @@ export default function WebhookTool() {
     })()
 
   const setType = (t) => {
-    // Swap in the matching sample if the body is still a known sample / empty.
     if (!body.trim() || Object.values(SAMPLES).includes(body.trim())) setBody(SAMPLES[t])
     setContentType(t)
   }
@@ -80,7 +78,6 @@ export default function WebhookTool() {
       try {
         text = await res.text()
       } catch {
-        /* opaque */
       }
       const resHeaders = []
       res.headers.forEach((v, k) => resHeaders.push(`${k}: ${v}`))

@@ -116,17 +116,6 @@ body {
   animation: rise-in 0.45s var(--ease-out) both;
 }
 
-@keyframes shake {
-  0%, 100% { translate: 0 0; }
-  20% { translate: -6px 0; }
-  40% { translate: 5px 0; }
-  60% { translate: -3px 0; }
-  80% { translate: 2px 0; }
-}
-.animate-shake {
-  animation: shake 0.4s var(--ease-out);
-}
-
 @keyframes blink {
   0%,
   50% {

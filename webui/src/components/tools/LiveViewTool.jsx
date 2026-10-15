@@ -20,7 +20,7 @@ export default function LiveViewTool() {
   const [input, setInput] = useState('')
   const [url, setUrl] = useState('')
   const [device, setDevice] = useState('desktop')
-  const [nonce, setNonce] = useState(0) // bump to force an iframe reload
+  const [nonce, setNonce] = useState(0)
   const frameRef = useRef(null)
 
   const dev = DEVICES.find((d) => d.id === device)

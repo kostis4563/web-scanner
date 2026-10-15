@@ -6,6 +6,7 @@ import ScanRunning from './components/ScanRunning.jsx'
 import Results from './components/Results.jsx'
 import LiveSelect from './components/LiveSelect.jsx'
 import ToolSwitcher from './components/ToolSwitcher.jsx'
+import StarGate from './components/StarGate.jsx'
 import EncoderTool from './components/tools/EncoderTool.jsx'
 import HashTool from './components/tools/HashTool.jsx'
 import JwtTool from './components/tools/JwtTool.jsx'
@@ -16,7 +17,8 @@ import HeadersTool from './components/tools/HeadersTool.jsx'
 import IpInfoTool from './components/tools/IpInfoTool.jsx'
 import LiveViewTool from './components/tools/LiveViewTool.jsx'
 import WebhookTool from './components/tools/WebhookTool.jsx'
-import { mockFindings, mockLog, pickRefusal } from './data/scanner.js'
+import { mockFindings, mockLog } from './data/scanner.js'
+import { loadUnlockedUser, saveUnlockedUser, verifyGithub } from './data/github.js'
 import {
   isNative,
   onUpdate,
@@ -40,12 +42,11 @@ const UTILITY_TOOLS = {
 }
 
 export default function App() {
-  const [view, setView] = useState('webscanner') // 'webscanner' | utility tool id
+  const [view, setView] = useState('webscanner')
 
   const [mode, setMode] = useState('siteScan')
   const [intensity, setIntensity] = useState('standard')
   const [target, setTarget] = useState('')
-  const [refusal, setRefusal] = useState(null)
 
   const [mockStage, setMockStage] = useState('idle')
   const [mockLogLines, setMockLogLines] = useState([])
@@ -53,6 +54,9 @@ export default function App() {
 
   const [snap, setSnap] = useState(null)
   const [forceIdle, setForceIdle] = useState(false)
+
+  const [unlockedAs, setUnlockedAs] = useState(loadUnlockedUser)
+  const [relock, setRelock] = useState(null)
 
   useEffect(() => {
     if (!isNative) return
@@ -62,6 +66,25 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const saved = loadUnlockedUser()
+    if (!saved) return
+    verifyGithub(saved)
+      .then((r) => {
+        if (r.starred !== false && r.follows) return
+        saveUnlockedUser(null)
+        setRelock(r)
+        setUnlockedAs(null)
+      })
+      .catch(() => {})
+  }, [])
+
+  const unlock = (login) => {
+    saveUnlockedUser(login)
+    setRelock(null)
+    setUnlockedAs(login)
+  }
+
+  useEffect(() => {
     if (isNative && snap && !snap.running && !snap.done && snap.target && !target) {
       setTarget(snap.target)
       if (snap.mode) setMode(snap.mode)
@@ -69,8 +92,6 @@ export default function App() {
     }
   }, [snap?.target])
 
-  // If the native side kicks off (or finished) a scan on its own while the user
-  // is in another tool, jump back to WebScanner so it isn't hidden.
   useEffect(() => {
     if (isNative && view !== 'webscanner' && (snap?.running || (snap?.done && !forceIdle))) {
       setView('webscanner')
@@ -79,22 +100,8 @@ export default function App() {
 
   const hostOf = (t) => t.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || t
 
-  const isCreatorSite = (t) => {
-    const host = t.trim().replace(/^[a-z]+:\/\//i, '').split(/[/?#]/)[0].replace(/:\d+$/, '')
-    return /(^|\.)blxr\.net\.?$/i.test(host)
-  }
-
-  const editTarget = (t) => {
-    setTarget(t)
-    setRefusal(null)
-  }
-
   const run = () => {
     if (!target.trim()) return
-    if (isCreatorSite(target)) {
-      setRefusal((r) => pickRefusal(r))
-      return
-    }
     if (isNative) {
       setForceIdle(false)
       nativeStart({ target, mode, intensity })
@@ -137,6 +144,7 @@ export default function App() {
   const resultMode = isNative ? snap?.mode || mode : mode
 
   const UtilityTool = UTILITY_TOOLS[view]
+  const scanner = view === 'webscanner' && !!unlockedAs
 
   return (
     <div className="flex min-h-screen flex-col bg-bg font-sans text-ink antialiased">
@@ -147,7 +155,9 @@ export default function App() {
 
         {UtilityTool && <UtilityTool />}
 
-        {view === 'webscanner' && stage === 'idle' && (
+        {view === 'webscanner' && !unlockedAs && <StarGate initial={relock} onUnlock={unlock} />}
+
+        {scanner && stage === 'idle' && (
           <div className="animate-rise">
             <section className="border-b border-dashed border-line px-4 py-7 sm:px-8">
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-subtle">
@@ -171,14 +181,13 @@ export default function App() {
               intensity={intensity}
               setIntensity={setIntensity}
               target={target}
-              setTarget={editTarget}
-              refusal={refusal}
+              setTarget={setTarget}
               onRun={run}
             />
           </div>
         )}
 
-        {view === 'webscanner' && stage === 'running' && (
+        {scanner && stage === 'running' && (
           <ScanRunning
             log={log}
             target={resultHost}
@@ -190,7 +199,7 @@ export default function App() {
           />
         )}
 
-        {view === 'webscanner' && stage === 'results' && (
+        {scanner && stage === 'results' && (
           <Results
             mode={resultMode}
             target={resultHost}

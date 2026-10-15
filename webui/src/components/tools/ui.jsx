@@ -16,7 +16,6 @@ export function CopyButton({ value, label = 'Copy', className = '' }) {
     try {
       await navigator.clipboard.writeText(value)
     } catch {
-      // Fallback for restricted contexts (e.g. file:// / WKWebView).
       const ta = document.createElement('textarea')
       ta.value = value
       ta.style.position = 'fixed'
@@ -26,7 +25,6 @@ export function CopyButton({ value, label = 'Copy', className = '' }) {
       try {
         document.execCommand('copy')
       } catch {
-        /* no-op */
       }
       document.body.removeChild(ta)
     }
@@ -63,7 +61,6 @@ export function Textarea({ value, onChange, placeholder, rows = 5, readOnly = fa
   )
 }
 
-// A segmented control (same look as the intensity picker in ScanForm).
 export function Segmented({ options, value, onChange }) {
   return (
     <div className="inline-flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">

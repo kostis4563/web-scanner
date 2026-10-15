@@ -65,6 +65,14 @@ final class ScannerBridge: NSObject, WKScriptMessageHandler {
     private var cancellable: AnyCancellable?
     private var pushScheduled = false
 
+    static let unlockKey = "githubUnlockUser"
+
+    static func unlockScript() -> WKUserScript {
+        let user = UserDefaults.standard.string(forKey: unlockKey)
+        let json = user.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "null"
+        return WKUserScript(source: "window.__wsUnlockUser = \(json);", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+    }
+
     func attach(to web: WKWebView) {
         self.web = web
         cancellable = vm.objectWillChange.sink { [weak self] _ in self?.schedulePush() }
@@ -79,6 +87,7 @@ final class ScannerBridge: NSObject, WKScriptMessageHandler {
             pushNow()
 
         case "start":
+            guard UserDefaults.standard.string(forKey: Self.unlockKey) != nil else { return }
             vm.target = (body["target"] as? String) ?? ""
             if let m = body["mode"] as? String, let mode = ScanMode(rawValue: m) { vm.mode = mode }
             if let i = body["intensity"] as? String, let it = ScanIntensity(rawValue: i) { vm.intensity = it }
@@ -93,6 +102,9 @@ final class ScannerBridge: NSObject, WKScriptMessageHandler {
 
         case "openExternal":
             if let s = body["url"] as? String, let u = URL(string: s) { NSWorkspace.shared.open(u) }
+
+        case "unlock":
+            UserDefaults.standard.set(body["user"] as? String, forKey: Self.unlockKey)
 
         default:
             break
@@ -185,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(WebSchemeHandler(root: resources), forURLScheme: "app")
         config.userContentController.add(bridge, name: "scanner")
+        config.userContentController.addUserScript(ScannerBridge.unlockScript())
 
         web = WKWebView(frame: frame, configuration: config)
         web.autoresizingMask = [.width, .height]

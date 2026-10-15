@@ -1,7 +1,7 @@
 import { MODES, INTENSITIES, TARGET_HINTS } from '../data/scanner.js'
 import { Icon } from './Icon.jsx'
 
-export default function ScanForm({ mode, setMode, intensity, setIntensity, target, setTarget, onRun, refusal }) {
+export default function ScanForm({ mode, setMode, intensity, setIntensity, target, setTarget, onRun }) {
   const activeMode = MODES.find((m) => m.id === mode) || MODES[0]
   const activeIntensity = INTENSITIES.find((i) => i.id === intensity) || INTENSITIES[0]
   const hint = TARGET_HINTS[activeMode.target]
@@ -45,12 +45,7 @@ export default function ScanForm({ mode, setMode, intensity, setIntensity, targe
           {hint.label}
         </label>
         <div
-          key={refusal || 'ok'}
-          className={`group flex items-center gap-2 rounded-xl border bg-surface px-3.5 transition-colors duration-200 ${
-            refusal
-              ? 'animate-shake border-sev-critical/50'
-              : 'border-line focus-within:border-ink-strong/40 hover:border-line-strong'
-          }`}
+          className="group flex items-center gap-2 rounded-xl border border-line bg-surface px-3.5 transition-colors duration-200 focus-within:border-ink-strong/40 hover:border-line-strong"
         >
           <Icon name="search" className="h-4 w-4 shrink-0 text-ink-faint" />
           <input
@@ -99,17 +94,6 @@ export default function ScanForm({ mode, setMode, intensity, setIntensity, targe
         <Icon name="zap" className="h-4 w-4" strokeWidth={2} />
         Run scan
       </button>
-
-      {refusal && (
-        <div
-          key={refusal}
-          role="alert"
-          className="animate-rise mt-3 flex items-start gap-3 rounded-xl border border-dashed border-sev-critical/40 bg-sev-critical/[0.06] px-4 py-3"
-        >
-          <span className="mt-px font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-sev-critical">403</span>
-          <p className="text-[13px] leading-relaxed text-ink-strong">{refusal}</p>
-        </div>
-      )}
     </form>
   )
 }
